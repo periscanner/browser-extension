@@ -1,0 +1,46 @@
+{
+  "../../../../@crx/manifest": {
+    "file": "assets/crx-manifest.js-B0ww-SVl.js",
+    "name": "crx-manifest.js",
+    "src": "../../../../@crx/manifest",
+    "isEntry": true
+  },
+  "_client-Dp23ropS.js": {
+    "file": "assets/client-Dp23ropS.js",
+    "name": "client"
+  },
+  "_main.tsx-loader-CDF-yHPA.js": {
+    "file": "assets/main.tsx-loader-CDF-yHPA.js",
+    "src": "_main.tsx-loader-CDF-yHPA.js"
+  },
+  "src/background.ts": {
+    "file": "assets/background.ts-kencS-dz.js",
+    "name": "background.ts",
+    "src": "src/background.ts",
+    "isEntry": true
+  },
+  "src/content/main.tsx": {
+    "file": "assets/main.tsx-BZbxVNcR.js",
+    "name": "main.tsx",
+    "src": "src/content/main.tsx",
+    "isEntry": true,
+    "imports": [
+      "_client-Dp23ropS.js"
+    ],
+    "css": [
+      "assets/main-CvmL11gz.css"
+    ]
+  },
+  "src/sidepanel/index.html": {
+    "file": "assets/index.html-Ck9P6qqx.js",
+    "name": "index.html",
+    "src": "src/sidepanel/index.html",
+    "isEntry": true,
+    "imports": [
+      "_client-Dp23ropS.js"
+    ],
+    "css": [
+      "assets/index-Bw_01slf.css"
+    ]
+  }
+}
