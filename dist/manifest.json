@@ -3,11 +3,11 @@
   "name": "periscanner-extension",
   "version": "0.0.1",
   "icons": {
-    "48": "public/logo/LOGO_CIRCLE_48x48.webp"
+    "48": "public/logo/LOGO_CIRCLE_48x48.png"
   },
   "action": {
     "default_icon": {
-      "48": "public/logo/LOGO_CIRCLE_48x48.webp"
+      "48": "public/logo/LOGO_CIRCLE_48x48.png"
     }
   },
   "permissions": [

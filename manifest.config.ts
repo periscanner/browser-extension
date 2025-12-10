@@ -6,11 +6,11 @@ export default defineManifest({
   name: pkg.name,
   version: pkg.version,
   icons: {
-    48: 'public/logo/LOGO_CIRCLE_48x48.webp',
+    48: 'public/logo/LOGO_CIRCLE_48x48.png',
   },
   action: {
     default_icon: {
-      48: 'public/logo/LOGO_CIRCLE_48x48.webp',
+      48: 'public/logo/LOGO_CIRCLE_48x48.png',
     },
   },
   permissions: [
