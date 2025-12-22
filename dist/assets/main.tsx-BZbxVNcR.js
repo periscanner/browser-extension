@@ -1,1 +1,0 @@
-import{j as e,c as n,r as t}from"./client-Dp23ropS.js";function c(){return e.jsx("div",{className:"popup-container",children:e.jsx("h1",{children:"Periscanner"})})}const r=document.createElement("div");r.id="crxjs-app";document.body.appendChild(r);n.createRoot(r).render(e.jsx(t.StrictMode,{children:e.jsx(c,{})}));
