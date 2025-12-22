@@ -1,0 +1,1 @@
+import"./modulepreload-polyfill-B5Qt9EMX.js";import{_ as c,c as e,o,a as r}from"./_plugin-vue_export-helper-BLlOPu6V.js";const a={};function n(p,s){return o(),e("h1",null,"Dashboard")}const t=c(a,[["render",n]]);r(t).mount("#app");
