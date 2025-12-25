@@ -53,6 +53,8 @@ export function useClustersByWallets(
         watch(payload, () => execute(), { deep: true })
     }
 
+    console.log('clusters', data.value?.clusters)
+
     return {
         clusters: computed<ClusterWithMembers[]>(() => data.value?.clusters ?? []),
         /** Individual members across all clusters (flattened) – useful for some views */
