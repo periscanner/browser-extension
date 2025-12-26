@@ -6,6 +6,7 @@ import zip from 'vite-plugin-zip-pack'
 import { resolve } from 'path'
 import manifest from './manifest.config.ts'
 import { name, version } from './package.json'
+import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   resolve: {
@@ -17,6 +18,7 @@ export default defineConfig({
     vue(),
     crx({ manifest }),
     zip({ outDir: 'release', outFileName: `crx-${name}-${version}.zip` }),
+    tailwindcss(),
   ],
   server: {
     cors: {
