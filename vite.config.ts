@@ -3,7 +3,6 @@ import { crx } from '@crxjs/vite-plugin'
 import vue from '@vitejs/plugin-vue'
 import { defineConfig } from 'vite'
 import zip from 'vite-plugin-zip-pack'
-import { resolve } from 'path'
 import manifest from './manifest.config.ts'
 import { name, version } from './package.json'
 import tailwindcss from '@tailwindcss/vite'
@@ -26,12 +25,5 @@ export default defineConfig({
         /chrome-extension:\/\//,
       ],
     },
-  },
-  build: {
-    rollupOptions: {
-      input: {
-        dashboard: resolve(__dirname, 'src/dashboard/index.html'),
-      },
-    }
   },
 })

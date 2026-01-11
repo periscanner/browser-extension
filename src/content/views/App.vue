@@ -1,28 +1,20 @@
 <script setup lang="ts">
-import Logo from '@/assets/crx.svg'
-import { ref } from 'vue'
+function extractTokenAddress(): string | null {
+  const link = document.querySelector('a[href*="pump.fun/coin/"]');
+  if (!link) return null;
+  const href = link.getAttribute('href');
+  if (!href) return null;
+  const parts = href.split('/coin/');
+  return parts.length > 1 ? parts[1] : null;
+}
 
-const show = ref(false)
-const toggle = () => show.value = !show.value
+// On load or button trigger
+const token = extractTokenAddress();
+if (token) {
+  chrome.runtime.sendMessage({ type: 'token', value: token });
+}
+
 </script>
-
-<template>
-  <div class="popup-container">
-    <div
-      v-show="show"
-      class="popup-content"
-      :class="show ? 'opacity-100' : 'opacity-0'"
-    >
-      <h1>HELLO CRXJS</h1>
-    </div>
-    <button
-      class="toggle-button"
-      @click="toggle()"
-    >
-      <img :src="Logo" alt="CRXJS logo" class="button-icon">
-    </button>
-  </div>
-</template>
 
 <style scoped>
 .popup-container {
