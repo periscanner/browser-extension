@@ -12,23 +12,23 @@ export default defineManifest({
     default_icon: {
       48: 'public/logo/LOGO_CIRCLE_48x48.png',
     },
-    // default_popup: 'src/popup/index.html',
   },
   content_scripts: [{
     js: ['src/content/main.ts'],
-    matches: ['https://*/*'],
+    matches: ['https://axiom.trade/meme/*'],
   }],
-  "background": {
+  background: {
     "service_worker": "src/background.ts",
     "type": "module"
   },
   permissions: [
     'sidePanel',
-    'contentSettings',
     'storage',
     'tabs',
+    'activeTab' // Added to help with message passing
   ],
-  side_panel: {
-    default_path: 'src/sidepanel/index.html',
-  },
+  // ADDED: Crucial for allowing fetch calls to your API
+  host_permissions: [
+    'https://fibjnghzdogyhjzubokf.supabase.co/*'
+  ]
 })
