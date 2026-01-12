@@ -2,8 +2,7 @@ console.log('[Cluster Scanner] Initializing...')
 
 const LOGO_PATH = 'https://fibjnghzdogyhjzubokf.supabase.co/storage/v1/object/public/periscanner/clusters/periscanner_logo.png'
 
-// const API_URL = 'https://scanner-api.periscannerx.workers.dev/api'
-const API_URL = 'http://localhost:8787/api'
+const API_URL = 'https://scanner-api.periscannerx.workers.dev/api'
 
 // --- TYPE DEFINITIONS ---
 
@@ -255,12 +254,12 @@ function createStyles() {
     .cs-cluster-amount {
       color: #fbbf24;
       font-weight: 600;
-      font-size: 11px;
+      font-size: 9px;
     }
     
     .cs-cluster-percentage {
       color: #10b981;
-      font-size: 12px;
+      font-size: 14px;
     }
     
     .cs-member { 
@@ -479,6 +478,10 @@ async function runScan(ui: any) {
         <span class="cs-stats-label">Top 20 Hold:</span>
         <span class="cs-stats-value">${scanData.stats.percentageOfSupply.toFixed(2)}%</span>
       </div>
+      <div class="cs-stats-row">
+        <span class="cs-stats-label">Decimals:</span>
+        <span class="cs-stats-value">${scanData.metadata.decimals}</span>
+      </div>
     `
 
     const walletAddresses = holders.map((h: TokenHolder) => h.owner)
@@ -492,15 +495,32 @@ async function runScan(ui: any) {
     const clusterResponse = await fetchClustersByWallets(walletAddresses)
     const clusters = clusterResponse.clusters || []
 
+    console.log('[Cluster Scanner] Raw clusters:', clusters)
+    console.log('[Cluster Scanner] First cluster members:', clusters[0]?.members)
+
     const relevantClusters = clusters
       .map((cluster: ClusterWithMembers) => {
-        const validMembers = cluster.members
-          .filter((m: ClusterMember) => amountMap.has(m.wallet_address))
+        console.log(`[Cluster Scanner] Processing cluster ${cluster.cluster_id}`)
+        console.log(`[Cluster Scanner] Total members in cluster:`, cluster.members?.length)
+
+        // The members array should already be parsed from the RPC
+        const members = Array.isArray(cluster.members) ? cluster.members : []
+
+        console.log(`[Cluster Scanner] Members array:`, members)
+
+        const validMembers = members
+          .filter((m: ClusterMember) => {
+            const hasAmount = amountMap.has(m.wallet_address)
+            console.log(`[Cluster Scanner] Member ${m.wallet_address}: in top 20? ${hasAmount}`)
+            return hasAmount
+          })
           .sort((a: ClusterMember, b: ClusterMember) => {
             const amountA = amountMap.get(a.wallet_address) || 0
             const amountB = amountMap.get(b.wallet_address) || 0
             return amountB - amountA
           })
+
+        console.log(`[Cluster Scanner] Valid members after filter:`, validMembers.length)
 
         const clusterTotal = validMembers.reduce(
           (sum, m) => sum + (amountMap.get(m.wallet_address) || 0),
@@ -512,10 +532,13 @@ async function runScan(ui: any) {
           cluster_name: cluster.cluster_name,
           members: validMembers,
           totalAmount: clusterTotal,
+          totalMembersInCluster: members.length,
         }
       })
       .filter((c: any) => c.members.length > 0)
       .sort((a: any, b: any) => b.totalAmount - a.totalAmount)
+
+    console.log('[Cluster Scanner] Relevant clusters after processing:', relevantClusters)
 
     renderResults(ui, relevantClusters, amountMap, totalSupply)
 
