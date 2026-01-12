@@ -2,10 +2,25 @@ console.log('[Cluster Scanner] Initializing...')
 
 const LOGO_PATH = 'https://fibjnghzdogyhjzubokf.supabase.co/storage/v1/object/public/periscanner/clusters/periscanner_logo.png'
 
+const API_URL = 'https://scanner-api.periscannerx.workers.dev/api'
+
 // --- 1. CORE LOGIC & API ---
 
 function extractTokenFromUrl(): string | null {
-  // 1. Try Iframe
+  const path = window.location.pathname;
+
+  // 1. Try DexScreener / Photon / Solscan pattern (path ends with or contains an address)
+  // Matches base58 strings between 32 and 44 chars
+  const addressRegex = /[1-9A-HJ-NP-Za-km-z]{32,44}/;
+
+  // Check URL path for an address
+  const pathMatch = path.match(addressRegex);
+  if (pathMatch) {
+    console.log('[Cluster Scanner] Found address in path:', pathMatch[0]);
+    return pathMatch[0];
+  }
+
+  // 2. Try Iframe (Embeds)
   const iframe = document.querySelector('iframe[src*="tokenAddress="]')
   if (iframe) {
     const src = iframe.getAttribute('src')
@@ -18,23 +33,22 @@ function extractTokenFromUrl(): string | null {
     }
   }
 
-  // 2. Try URL path
-  const urlMatch = window.location.pathname.match(/\/meme\/([^\/\?]+)/)
-  if (urlMatch) {
-    console.log('[Cluster Scanner] Found token in URL:', urlMatch[1])
-    return urlMatch[1]
-  }
-
   return null
 }
 
-async function fetchLargestHolders(mintAddress: string) {
-  const response = await fetch('https://fibjnghzdogyhjzubokf.supabase.co/functions/v1/scanner-api/get-token-top-holders', {
+async function fetchScanResults(urlTokenAddress: string) {
+  // We send the "urlTokenAddress" (which might be a Pair). 
+  // The server resolves it to the Mint and returns holders.
+  const response = await fetch(`${API_URL}/extension/scan-pair`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mintAddress }),
+    body: JSON.stringify({ urlTokenAddress }),
   })
-  if (!response.ok) throw new Error('Failed to fetch holders')
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to scan pair');
+  }
   return response.json()
 }
 
@@ -57,14 +71,11 @@ function createStyles() {
   const style = document.createElement('style')
   style.textContent = `
     #cluster-scanner-widget {
-      /* Initial Position: Fixed allows it to stay in view while scrolling */
       position: fixed; 
-      /* We start at bottom-right, but will switch to top/left logic in JS */
       bottom: 20px;
       right: 20px;
       z-index: 999999;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      /* Vital for clean dragging */
       touch-action: none;
       user-select: none; 
     }
@@ -94,7 +105,7 @@ function createStyles() {
       width: 100%;
       height: 100%;
       object-fit: cover;
-      pointer-events: none; /* Prevents image ghost dragging */
+      pointer-events: none;
     }
 
     .cs-panel {
@@ -106,15 +117,12 @@ function createStyles() {
       background: #0f172a;
       border-radius: 12px;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-      display: none; /* Hidden by default */
+      display: none;
       flex-direction: column;
       border: 1px solid #1e293b;
     }
 
-    /* Helper class to show panel */
-    .cs-panel.visible {
-      display: flex;
-    }
+    .cs-panel.visible { display: flex; }
 
     .cs-header {
       padding: 16px;
@@ -134,7 +142,6 @@ function createStyles() {
 
     .cs-content { flex: 1; overflow-y: auto; padding: 16px; color: #e2e8f0; max-height: 400px; }
     
-    /* Utility Classes */
     .cs-loading { padding: 20px; text-align: center; color: #94a3b8; }
     .cs-error { background: #450a0a; color: #fca5a5; padding: 10px; border-radius: 6px; font-size: 13px; }
     .cs-empty { text-align: center; color: #64748b; padding: 20px; }
@@ -149,6 +156,9 @@ function createStyles() {
       margin: 10px; padding: 10px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;
     }
     .cs-refresh:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Small badge for resolved mint */
+    .cs-meta { font-size: 10px; color: #64748b; padding: 0 16px 8px; text-align: right; }
   `
   document.head.appendChild(style)
 }
@@ -168,6 +178,7 @@ function createWidgetElements() {
       <div id="cs-content" class="cs-content">
         <div class="cs-loading">Click Refresh to scan</div>
       </div>
+      <div id="cs-meta" class="cs-meta"></div>
       <button id="cs-refresh" class="cs-refresh">Refresh Scan</button>
     </div>
   `
@@ -178,18 +189,13 @@ function createWidgetElements() {
     panel: widget.querySelector('#cs-panel') as HTMLElement,
     closeBtn: widget.querySelector('#cs-close') as HTMLElement,
     content: widget.querySelector('#cs-content') as HTMLElement,
+    meta: widget.querySelector('#cs-meta') as HTMLElement,
     refreshBtn: widget.querySelector('#cs-refresh') as HTMLButtonElement
   }
 }
 
 // --- 3. ROBUST DRAG & DROP LOGIC ---
 
-/**
- * Enables standard "sticky" dragging on an element using pointer events.
- * Pointer events are superior to mouse events for drag operations.
- * @param container The element that moves (the parent wrapper)
- * @param handle The element that triggers the drag (the button)
- */
 function makeDraggable(container: HTMLElement, handle: HTMLElement) {
   let isDragging = false
   let hasMoved = false
@@ -198,26 +204,18 @@ function makeDraggable(container: HTMLElement, handle: HTMLElement) {
   let initialLeft = 0
   let initialTop = 0
 
-  // Use pointer events instead of mouse events - they're more reliable
   handle.addEventListener('pointerdown', startDrag)
 
   function startDrag(e: PointerEvent) {
     e.preventDefault()
-
-    // Capture the pointer to this element - this ensures we keep receiving
-    // events even if the pointer moves fast or goes outside the element
     handle.setPointerCapture(e.pointerId)
 
-    // Calculate Initial Position
     const rect = container.getBoundingClientRect()
-
-    // Switch from bottom/right to top/left positioning
     container.style.bottom = 'auto'
     container.style.right = 'auto'
     container.style.left = `${rect.left}px`
     container.style.top = `${rect.top}px`
 
-    // Capture start state
     startX = e.clientX
     startY = e.clientY
     initialLeft = rect.left
@@ -226,7 +224,6 @@ function makeDraggable(container: HTMLElement, handle: HTMLElement) {
     isDragging = true
     hasMoved = false
 
-    // Add listeners to the handle (not document) since we have pointer capture
     handle.addEventListener('pointermove', onPointerMove)
     handle.addEventListener('pointerup', onPointerUp)
     handle.addEventListener('pointercancel', onPointerUp)
@@ -234,73 +231,53 @@ function makeDraggable(container: HTMLElement, handle: HTMLElement) {
 
   function onPointerMove(e: PointerEvent) {
     if (!isDragging) return
-
     const dx = e.clientX - startX
     const dy = e.clientY - startY
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) hasMoved = true
 
-    // Threshold: more than 3 pixels means it's a drag, not a click
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
-      hasMoved = true
-    }
-
-    // Calculate new position
     let newLeft = initialLeft + dx
     let newTop = initialTop + dy
 
-    // Boundary constraints
     const maxLeft = window.innerWidth - container.offsetWidth
     const maxTop = window.innerHeight - container.offsetHeight
-
     newLeft = Math.max(0, Math.min(newLeft, maxLeft))
     newTop = Math.max(0, Math.min(newTop, maxTop))
 
-    // Apply position
     container.style.left = `${newLeft}px`
     container.style.top = `${newTop}px`
   }
 
   function onPointerUp(e: PointerEvent) {
     if (!isDragging) return
-
     isDragging = false
-
-    // Release pointer capture
-    if (handle.hasPointerCapture(e.pointerId)) {
-      handle.releasePointerCapture(e.pointerId)
-    }
-
-    // Remove listeners
+    if (handle.hasPointerCapture(e.pointerId)) handle.releasePointerCapture(e.pointerId)
     handle.removeEventListener('pointermove', onPointerMove)
     handle.removeEventListener('pointerup', onPointerUp)
     handle.removeEventListener('pointercancel', onPointerUp)
-
-    // Small delay before allowing clicks to prevent accidental toggles
-    setTimeout(() => {
-      hasMoved = false
-    }, 100)
+    setTimeout(() => { hasMoved = false }, 100)
   }
 
-  return {
-    wasDragging: () => hasMoved
-  }
+  return { wasDragging: () => hasMoved }
 }
 
 // --- 4. DATA LOGIC ---
 
 async function runScan(ui: any) {
-  const token = extractTokenFromUrl()
+  const addressFromUrl = extractTokenFromUrl()
 
-  if (!token) {
-    ui.content.innerHTML = `<div class="cs-error">Could not find token address in URL or Iframe.</div>`
+  if (!addressFromUrl) {
+    ui.content.innerHTML = `<div class="cs-error">Could not find address in URL. Open a Pair or Token page.</div>`
     return
   }
 
-  ui.content.innerHTML = `<div class="cs-loading">Scanning largest holders...</div>`
+  ui.content.innerHTML = `<div class="cs-loading">Resolving Pair & Scanning Holders...</div>`
   ui.refreshBtn.disabled = true
 
   try {
-    const holdersData = await fetchLargestHolders(token)
-    const holders = holdersData.holders || []
+    // 1. Fetch scan results (Server resolves Pair->Mint)
+    const scanData = await fetchScanResults(addressFromUrl)
+
+    const holders = scanData.holders || []
 
     if (holders.length === 0) {
       ui.content.innerHTML = `<div class="cs-empty">No holders found.</div>`
@@ -309,24 +286,21 @@ async function runScan(ui: any) {
 
     const walletAddresses = holders.map((h: any) => h.accountAddress)
 
-    // --- FIX STARTS HERE ---
-    // We explicitly tell TS this is a Map<string, number>
-    // And we force the data types using String() and Number()
+    // Map for quick amount lookups
     const amountMap = new Map<string, number>(
       holders.map((h: any) => [
         String(h.accountAddress),
         Number(h.humanReadableAmount)
       ])
     )
-    // --- FIX ENDS HERE ---
 
     ui.content.innerHTML = `<div class="cs-loading">Analyzing ${holders.length} wallets for clusters...</div>`
 
+    // 2. Fetch Clusters
     const clustersData = await fetchClustersByWallets(walletAddresses)
     const clusters = clustersData.clusters || []
 
     const relevantClusters = clusters.map((cluster: any) => {
-      // TS now knows amountMap.get() returns a number (or undefined)
       const validMembers = cluster.members
         .filter((m: any) => amountMap.has(m.wallet_address))
         .sort((a: any, b: any) => {
@@ -381,19 +355,15 @@ function renderResults(ui: any, clusters: any[], amountMap: Map<string, number>)
   createStyles()
   const ui = createWidgetElements()
 
-  // Initialize Drag System
   const dragSystem = makeDraggable(ui.container, ui.toggleBtn)
 
-  // Toggle Panel Logic
   ui.toggleBtn.addEventListener('click', (e) => {
-    // CRITICAL: Don't toggle if we just finished dragging
     if (dragSystem.wasDragging()) return
 
     const isClosed = ui.panel.style.display === 'none' || ui.panel.style.display === ''
 
     if (isClosed) {
       ui.panel.style.display = 'flex'
-      // Auto-scan on first open if empty
       if (ui.content.innerText.includes('Click Refresh')) {
         runScan(ui)
       }
@@ -402,12 +372,10 @@ function renderResults(ui: any, clusters: any[], amountMap: Map<string, number>)
     }
   })
 
-  // Close Button
   ui.closeBtn.addEventListener('click', () => {
     ui.panel.style.display = 'none'
   })
 
-  // Refresh Button
   ui.refreshBtn.addEventListener('click', () => runScan(ui))
 
   // Watch for URL changes (SPA navigation)
@@ -417,6 +385,7 @@ function renderResults(ui: any, clusters: any[], amountMap: Map<string, number>)
       lastUrl = location.href
       console.log('[Cluster Scanner] URL changed, resetting...')
       ui.content.innerHTML = `<div class="cs-loading">URL changed. Click Refresh.</div>`
+      ui.meta.innerText = ''
     }
   }).observe(document.body, { childList: true, subtree: true })
 
