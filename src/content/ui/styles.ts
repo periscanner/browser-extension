@@ -110,10 +110,19 @@ export function createStyles() {
       margin-bottom: 8px; 
     }
     
-    .cs-cluster-name { 
-      font-weight: bold; 
-      color: #93c5fd; 
-      font-size: 13px; 
+    .cs-cluster-name {
+      font-weight: bold;
+      color: #93c5fd;
+      font-size: 13px;
+    }
+
+    .cs-cluster-name-link {
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .cs-cluster-name-link:hover .cs-cluster-name {
+      text-decoration: underline;
     }
     
     .cs-cluster-total {
@@ -153,12 +162,19 @@ export function createStyles() {
       gap: 4px;
     }
     
-    .cs-member-addr { 
-      font-family: monospace; 
-      color: #94a3b8; 
+    .cs-member-addr {
+      font-family: monospace;
+      color: #94a3b8;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+
+    .cs-member-addr:hover {
+      color: #60a5fa;
+      text-decoration: underline;
     }
     
-    .cs-member-role { 
+    .cs-member-role {
       font-size: 9px; 
       color: #64748b; 
       background: rgba(100, 116, 139, 0.2);
@@ -215,12 +231,31 @@ export function createStyles() {
       cursor: not-allowed; 
     }
 
-    .cs-meta { 
-      font-size: 10px; 
-      color: #64748b; 
-      padding: 0 16px 8px; 
-      text-align: right; 
+    .cs-meta {
+      font-size: 10px;
+      color: #64748b;
+      padding: 0 16px 8px;
+      text-align: right;
     }
+
+    .cs-toast {
+      position: fixed;
+      top: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #020618;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      z-index: 2147483647;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    }
+    .cs-toast.visible { opacity: 1; }
   `
   document.head.appendChild(style)
 }
