@@ -32,7 +32,6 @@ async function runScan(ui: any, deepScan = false) {
   try {
     // 1. Fetch Top Holders
     const scanData: ScanResult = await fetchScanResults(addressFromUrl)
-    lastScanData = scanData
     console.log('[Cluster Scanner] Scan data:', scanData)
 
     const holders: TokenHolder[] = scanData.holders || []
