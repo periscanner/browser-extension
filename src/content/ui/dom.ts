@@ -18,7 +18,7 @@ export function createWidgetElements() {
       </div>
       <div class="cs-footer">
         <button id="cs-refresh" class="cs-refresh">Refresh Scan</button>
-        <button id="cs-deep-analyze" class="cs-deep-analyze" title="Analyze unknown top holders">Deep Analyze</button>
+        <button id="cs-deep-analyze" class="cs-deep-analyze" title="Analyze unknown top holders">Deep Scan</button>
       </div>
     </div>
   `
