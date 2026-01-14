@@ -45,7 +45,7 @@ export function createStyles() {
       right: 0;
       width: 420px;
       max-height: 600px;
-      background: rgba(15, 23, 42, 0.6);
+      background: rgba(15, 23, 42, 0.8);
       border-radius: 12px;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
       display: none;
