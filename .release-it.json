@@ -18,6 +18,6 @@
     }
   },
   "hooks": {
-    "after:bump": "npm run build"
+    "after:bump": "pnpm run build"
   }
 }
