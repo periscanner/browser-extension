@@ -45,12 +45,13 @@ export function createStyles() {
       right: 0;
       width: 420px;
       max-height: 600px;
-      background: rgba(15, 23, 42, 0.8);
+      background: rgba(15, 23, 42, 0.9);
       border-radius: 12px;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
       display: none;
       flex-direction: column;
       border: 1px solid #1e293b;
+      backdrop-filter: blur(8px);
     }
 
     .cs-panel.visible { display: flex; }
@@ -187,18 +188,29 @@ export function createStyles() {
       margin-left: 4px;
     }
     
-    .cs-refresh {
-      margin: 10px; 
+    .cs-footer {
+      padding: 10px;
+      display: flex;
+      gap: 10px;
+      border-top: 1px solid #334155;
+    }
+
+    .cs-refresh, .cs-deep-analyze {
+      flex: 1;
       padding: 10px; 
-      background: #2563eb; 
       color: white; 
       border: none; 
       border-radius: 6px; 
       cursor: pointer; 
       font-weight: 600;
+      font-size: 12px;
+      transition: opacity 0.2s;
     }
+
+    .cs-refresh { background: #334155; }
+    .cs-deep-analyze { background: #2563eb; }
     
-    .cs-refresh:disabled { 
+    .cs-refresh:disabled, .cs-deep-analyze:disabled { 
       opacity: 0.5; 
       cursor: not-allowed; 
     }

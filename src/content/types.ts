@@ -43,3 +43,12 @@ export interface ClusterResponse {
   clusters: ClusterWithMembers[]
   count: number
 }
+
+export interface IngestResponse {
+  success: boolean;
+  wallet_address: string;
+  existed: boolean;
+  cluster_id?: string;
+  cluster_name?: string;
+  error?: string;
+}

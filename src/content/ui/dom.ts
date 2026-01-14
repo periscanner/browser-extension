@@ -16,7 +16,10 @@ export function createWidgetElements() {
       <div id="cs-content" class="cs-content">
         <div class="cs-loading">Click Refresh to scan</div>
       </div>
-      <button id="cs-refresh" class="cs-refresh">Refresh Scan</button>
+      <div class="cs-footer">
+        <button id="cs-refresh" class="cs-refresh">Refresh Scan</button>
+        <button id="cs-deep-analyze" class="cs-deep-analyze" title="Analyze unknown top holders">Deep Analyze</button>
+      </div>
     </div>
   `
   document.body.appendChild(widget)
@@ -27,6 +30,7 @@ export function createWidgetElements() {
     closeBtn: widget.querySelector('#cs-close') as HTMLElement,
     stats: widget.querySelector('#cs-stats') as HTMLElement,
     content: widget.querySelector('#cs-content') as HTMLElement,
-    refreshBtn: widget.querySelector('#cs-refresh') as HTMLButtonElement
+    refreshBtn: widget.querySelector('#cs-refresh') as HTMLButtonElement,
+    deepAnalyzeBtn: widget.querySelector('#cs-deep-analyze') as HTMLButtonElement
   }
 }
