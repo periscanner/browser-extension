@@ -26,7 +26,6 @@ insights into token holder distribution and coordinated wallet activity.
 - **Framework**: [Vue 3](https://vuejs.org/)
 - **Build Tool**: [Vite](https://vitejs.dev/) with [CRXJS](https://crxjs.dev/)
 - **Styling**: [Tailwind CSS](https://tailwindcss.com/)
-- **Backend**: Supabase-powered API
 
 ## 📦 Installation Guide (Developer Mode)
 
