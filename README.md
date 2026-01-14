@@ -85,3 +85,26 @@ pnpm build
 ```
 
 The build output will be in the `dist` directory.
+
+## 🚀 Release Process
+
+To create a new release (automated version bump, changelog, build, and GitHub
+release):
+
+1. **Prerequisites**:
+   - Ensure you have a `GITHUB_TOKEN` set in your environment OR are logged in
+     via `gh auth login`.
+   - Ensure you are on the main branch and have a clean working directory.
+
+2. **Run the Release Command**:
+   ```bash
+   pnpm run release
+   ```
+
+   This command will:
+   - Analyze your commits to determine the version bump (patch, minor, or
+     major).
+   - Update `package.json` and generate `CHANGELOG.md`.
+   - Build the extension (creating the `.zip` file).
+   - Commit and tag the release.
+   - Push to GitHub and create a Release with the `.zip` asset attached.
