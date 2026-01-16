@@ -10,19 +10,19 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   resolve: {
     alias: {
-      '@': `${path.resolve(__dirname, 'src')}`,
+      '@': path.resolve(__dirname, 'src'),
     },
   },
   plugins: [
     vue(),
     crx({ manifest }),
+    tailwindcss(),
     zip({
-      inDir: 'dist',
-      outDir: 'release',
+      inDir: path.resolve(__dirname, 'dist'), // Absolute path to dist
+      outDir: path.resolve(__dirname, 'release'), // Absolute path to release
       outFileName: `crx-${name}-${version}.zip`,
       pathPrefix: ''
     }),
-    tailwindcss(),
   ],
   server: {
     cors: {
@@ -31,4 +31,7 @@ export default defineConfig({
       ],
     },
   },
+  build: {
+    emptyOutDir: true, // Ensures a clean dist before zipping
+  }
 })
