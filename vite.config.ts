@@ -16,7 +16,12 @@ export default defineConfig({
   plugins: [
     vue(),
     crx({ manifest }),
-    zip({ outDir: 'release', outFileName: `crx-${name}-${version}.zip` }),
+    zip({
+      inDir: 'dist',
+      outDir: 'release',
+      outFileName: `crx-${name}-${version}.zip`,
+      pathPrefix: ''
+    }),
     tailwindcss(),
   ],
   server: {
