@@ -2,7 +2,9 @@ import path from 'node:path'
 import { crx } from '@crxjs/vite-plugin'
 import vue from '@vitejs/plugin-vue'
 import { defineConfig } from 'vite'
+import zipPack from 'vite-plugin-zip-pack'
 import manifest from './manifest.config.ts'
+import { name, version } from './package.json'
 import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
@@ -14,6 +16,11 @@ export default defineConfig({
   plugins: [
     vue(),
     crx({ manifest }),
+    zipPack({
+      inDir: 'dist',
+      outDir: 'release',
+      outFileName: `crx-${name}-${version}.zip`,
+    }),
     tailwindcss(),
   ],
   server: {
