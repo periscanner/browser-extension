@@ -2,9 +2,10 @@ export function createStyles() {
   const style = document.createElement('style')
   style.textContent = `
     #cluster-scanner-widget {
-      position: fixed; 
-      bottom: 20px;
-      right: 20px;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
       z-index: 999999;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       touch-action: none;

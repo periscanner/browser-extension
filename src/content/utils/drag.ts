@@ -13,6 +13,7 @@ export function makeDraggable(container: HTMLElement, handle: HTMLElement) {
     handle.setPointerCapture(e.pointerId)
 
     const rect = container.getBoundingClientRect()
+    container.style.transform = 'none'
     container.style.bottom = 'auto'
     container.style.right = 'auto'
     container.style.left = `${rect.left}px`

@@ -15,7 +15,7 @@ export default defineManifest({
   },
   content_scripts: [{
     js: ['src/content/main.ts'],
-    matches: ['https://axiom.trade/meme/*'],
+    matches: ['https://axiom.trade/*'],
   }],
   background: {
     "service_worker": "src/background.ts",

@@ -228,8 +228,15 @@ function processClusters(clusters: ClusterWithMembers[], amountMap: Map<string, 
     if (location.href !== lastUrl) {
       lastUrl = location.href
       console.log('[Cluster Scanner] URL changed, resetting...')
-      ui.content.innerHTML = `<div class="cs-loading">URL changed. Click Refresh.</div>`
       ui.stats.innerHTML = ''
+
+      const address = extractTokenFromUrl()
+      if (address) {
+        // Auto-scan if we detect a valid token in the new URL
+        runScan(ui, false)
+      } else {
+        ui.content.innerHTML = `<div class="cs-loading">Navigate to a Token Page to scan.</div>`
+      }
     }
   }).observe(document.body, { childList: true, subtree: true })
 
