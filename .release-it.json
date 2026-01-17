@@ -6,7 +6,7 @@
   "github": {
     "release": true,
     "releaseName": "v${version}",
-    "assets": ["release/*.zip"]
+    "assets": ["release/*-${version}.zip"]
   },
   "npm": {
     "publish": false
