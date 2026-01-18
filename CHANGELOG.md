@@ -1,5 +1,12 @@
 # Changelog
 
+# [1.2.0](https://github.com/periscanner/browser-extension/compare/v1.1.0...v1.2.0) (2026-01-18)
+
+
+### Features
+
+* Optimize token address extraction using regex for improved performance ([541142d](https://github.com/periscanner/browser-extension/commit/541142db8513457d96563149a09f61cd56efd41d))
+
 # [1.1.0](https://github.com/periscanner/browser-extension/compare/v1.0.15...v1.1.0) (2026-01-18)
 
 
