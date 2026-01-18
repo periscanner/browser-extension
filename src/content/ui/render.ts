@@ -1,5 +1,5 @@
 import { formatNumber, calculatePercentage } from '../utils/format'
-import { ClusterMember } from '../types'
+import { ClusterMember, SimilarToken } from '../types'
 
 export function renderResults(
   ui: any,
@@ -62,6 +62,84 @@ export function renderResults(
       }
     })
   })
+}
+
+export function renderSimilarTokens(
+  ui: any,
+  tokens: SimilarToken[]
+) {
+  if (tokens.length === 0) {
+    ui.similarContent.innerHTML = `<div class="cs-empty">No similar tokens found.</div>`
+    return
+  }
+
+  const html = tokens.map((token) => {
+    const isHighRisk = token.matchScore === 3
+    const cardClass = isHighRisk ? 'cs-similar-token cs-similar-token-high-risk' : 'cs-similar-token'
+
+    // Format date
+    const createdDate = token.pairCreatedAt
+      ? new Date(token.pairCreatedAt * 1000).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      })
+      : 'Unknown'
+
+    // Format market cap
+    const marketCap = token.marketCap
+      ? `$${(token.marketCap / 1000).toFixed(1)}k`
+      : 'N/A'
+
+    const bondedBadge = token.marketCap >= 60000
+      ? '<span class="cs-bonded-badge">BONDED</span>'
+      : ''
+
+    return `
+      <div class="${cardClass}">
+        <div class="cs-similar-token-header">
+          <div class="cs-similar-token-info">
+            <div class="cs-similar-token-name-row">
+              ${token.info?.imageUrl ? `<img src="${token.info.imageUrl}" alt="${token.baseToken.name}" class="cs-similar-token-image" />` : ''}
+              <div>
+                <div class="cs-similar-token-name">${token.baseToken.name}</div>
+                <div class="cs-similar-token-symbol">${token.baseToken.symbol}</div>
+              </div>
+            </div>
+            ${bondedBadge}
+          </div>
+          <div class="cs-similar-token-meta">
+            <div class="cs-similar-token-date">${createdDate}</div>
+            <div class="cs-similar-token-mcap">${marketCap}</div>
+          </div>
+        </div>
+        <div class="cs-similar-token-matches">
+          <label class="cs-match-checkbox">
+            <input type="checkbox" ${token.match.ticker ? 'checked' : ''} disabled />
+            Same ticker?
+          </label>
+          <label class="cs-match-checkbox">
+            <input type="checkbox" ${token.match.name ? 'checked' : ''} disabled />
+            Same name?
+          </label>
+          <label class="cs-match-checkbox">
+            <input type="checkbox" ${token.match.image ? 'checked' : ''} disabled />
+            Same image?
+          </label>
+        </div>
+        <div class="cs-similar-token-actions">
+          <a href="${token.axiomLink}" target="_blank" class="cs-similar-token-link">
+            View on Axiom
+          </a>
+          <a href="https://dexscreener.com/solana/${token.pairAddress}" target="_blank" class="cs-similar-token-link">
+            DexScreener
+          </a>
+        </div>
+      </div>
+    `
+  }).join('')
+
+  ui.similarContent.innerHTML = html
 }
 
 function showToast(message: string) {

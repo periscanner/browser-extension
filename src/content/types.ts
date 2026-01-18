@@ -52,3 +52,42 @@ export interface IngestResponse {
   cluster_name?: string;
   error?: string;
 }
+
+export interface SimilarTokenMatch {
+  ticker: boolean;
+  name: boolean;
+  image: boolean;
+}
+
+export interface SimilarToken {
+  chainId: string;
+  dexId: string;
+  pairAddress: string;
+  baseToken: {
+    address: string;
+    name: string;
+    symbol: string;
+  };
+  priceUsd: string;
+  liquidity: {
+    usd: number;
+  };
+  fdv: number;
+  marketCap: number;
+  pairCreatedAt: number;
+  info?: {
+    imageUrl?: string;
+  };
+  match: SimilarTokenMatch;
+  matchScore: number; // 0-3 based on how many fields match
+  axiomLink: string;
+}
+
+export interface SimilarTokensResponse {
+  tokens: SimilarToken[];
+  searchedToken: {
+    name: string;
+    symbol: string;
+    imageUrl?: string;
+  };
+}

@@ -1,5 +1,5 @@
 import { API_URL } from '../config'
-import { ScanResult, ClusterResponse, IngestResponse } from '../types'
+import { ScanResult, ClusterResponse, IngestResponse, SimilarTokensResponse } from '../types'
 
 export async function fetchScanResults(urlTokenAddress: string): Promise<ScanResult> {
   const response = await fetch(`${API_URL}/extension/scan`, {
@@ -35,5 +35,20 @@ export async function ingestWalletsBulk(wallets: string[]): Promise<IngestRespon
   })
 
   if (!response.ok) throw new Error('Failed to ingest wallets')
+  return await response.json()
+}
+
+export async function fetchSimilarTokens(name: string, symbol: string, imageUrl?: string): Promise<SimilarTokensResponse> {
+  const response = await fetch(`${API_URL}/extension/similar-tokens`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, symbol, imageUrl })
+  })
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err.error || 'Failed to fetch similar tokens')
+  }
+
   return await response.json()
 }

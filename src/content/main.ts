@@ -1,4 +1,4 @@
-import { fetchScanResults, fetchClustersByWallets, ingestWalletsBulk } from './services/api'
+import { fetchScanResults, fetchClustersByWallets, ingestWalletsBulk, fetchSimilarTokens } from './services/api'
 import { extractTokenFromUrl } from './services/scanner'
 
 import { formatNumber, calculatePercentage } from './utils/format'
@@ -6,9 +6,9 @@ import { makeDraggable } from './utils/drag'
 
 import { createStyles } from './ui/styles'
 import { createWidgetElements } from './ui/dom'
-import { renderResults } from './ui/render'
+import { renderResults, renderSimilarTokens } from './ui/render'
 
-import type { ClusterMember, ClusterWithMembers, ScanResult, TokenHolder } from './types'
+import type { ClusterMember, ClusterWithMembers, ScanResult, TokenHolder, SimilarToken } from './types'
 
 const SYSTEM_WALLETS = new Set([
   '6EF8rSutb9YvXWvP3NMWH5A7yQW52X4N1CdcS668JAt5', // Pump.fun Bonding Curve
@@ -16,6 +16,85 @@ const SYSTEM_WALLETS = new Set([
   '11111111111111111111111111111111',           // System Program / Burn
   'TokenkegQFEZmcsp366nz8SE69bb376o16Mxn4f8B8',   // Token Program
 ])
+
+let tokenMetadata: { name: string; symbol: string; imageUrl?: string } | null = null
+let similarTokensData: SimilarToken[] = []
+let currentMarketCap: number = 0
+let oldestBondedToken: SimilarToken | null = null
+let top20Percentage: string = ''
+
+function renderSummary(ui: any) {
+  const isBonded = currentMarketCap >= 60000
+  const bondedIcon = isBonded ? '✅' : '❌'
+  const bondedClass = isBonded ? 'cs-summary-bonded-yes' : 'cs-summary-bonded-no'
+
+  const ogButton = oldestBondedToken
+    ? `<a href="${oldestBondedToken.axiomLink}" class="cs-summary-og-btn" target="_self">Go to OG</a>`
+    : '<span style="color: #64748b;">N/A</span>'
+
+  ui.summary.innerHTML = `
+    <div class="cs-summary-item">
+      <span class="cs-summary-label">Bonded:</span>
+      <span class="${bondedClass}">${bondedIcon}</span>
+    </div>
+    <div class="cs-summary-item">
+      <span class="cs-summary-label">Similar Tokens:</span>
+      <span class="cs-summary-value">${similarTokensData.length}</span>
+    </div>
+    <div class="cs-summary-item">
+      <span class="cs-summary-label">Top 20 Hold:</span>
+      <span class="cs-summary-value">${top20Percentage}</span>
+    </div>
+    <div class="cs-summary-item">
+      <span class="cs-summary-label">OG Token:</span>
+      ${ogButton}
+    </div>
+  `
+  ui.summary.style.display = 'grid'
+}
+
+async function fetchAndRenderSimilarTokens(ui: any) {
+  if (!tokenMetadata) {
+    ui.similarContent.innerHTML = `<div class="cs-error">No token metadata available. Scan a token first.</div>`
+    return
+  }
+
+  ui.similarContent.innerHTML = `<div class="cs-loading">Searching for similar tokens...</div>`
+
+  try {
+    const response = await fetchSimilarTokens(
+      tokenMetadata.name,
+      tokenMetadata.symbol,
+      tokenMetadata.imageUrl
+    )
+
+    similarTokensData = response.tokens
+
+    // Find oldest bonded token (market cap >= 60k)
+    const bondedTokens = similarTokensData.filter(t => t.marketCap >= 60000)
+    oldestBondedToken = bondedTokens.length > 0 ? bondedTokens[0] : null
+
+    renderSimilarTokens(ui, similarTokensData)
+    renderSummary(ui)
+  } catch (err) {
+    console.error('[Cluster Scanner] Similar tokens error:', err)
+    ui.similarContent.innerHTML = `<div class="cs-error">${err instanceof Error ? err.message : 'Failed to fetch similar tokens'}</div>`
+  }
+}
+
+function switchTab(ui: any, tab: 'clusters' | 'similar') {
+  if (tab === 'clusters') {
+    ui.tabClusters.classList.add('cs-tab-active')
+    ui.tabSimilar.classList.remove('cs-tab-active')
+    ui.content.style.display = 'block'
+    ui.similarContent.style.display = 'none'
+  } else {
+    ui.tabSimilar.classList.add('cs-tab-active')
+    ui.tabClusters.classList.remove('cs-tab-active')
+    ui.content.style.display = 'none'
+    ui.similarContent.style.display = 'block'
+  }
+}
 
 async function runScan(ui: any, deepScan = false) {
   const addressFromUrl = extractTokenFromUrl()
@@ -37,6 +116,24 @@ async function runScan(ui: any, deepScan = false) {
     const holders: TokenHolder[] = scanData.holders || []
     const totalSupply = scanData.stats.totalSupply
 
+    // 2. Fetch token metadata from DexScreener for similar tokens feature
+    try {
+      const dexResponse = await fetch(`https://api.dexscreener.com/latest/dex/pairs/solana/${addressFromUrl}`)
+      const dexData: any = await dexResponse.json()
+      if (dexData.pairs && dexData.pairs.length > 0) {
+        const pair = dexData.pairs[0]
+        tokenMetadata = {
+          name: pair.baseToken.name,
+          symbol: pair.baseToken.symbol,
+          imageUrl: pair.info?.imageUrl
+        }
+        currentMarketCap = pair.marketCap || 0
+        console.log('[Cluster Scanner] Token metadata:', tokenMetadata)
+      }
+    } catch (metaErr) {
+      console.warn('[Cluster Scanner] Failed to fetch token metadata:', metaErr)
+    }
+
     if (holders.length === 0) {
       ui.content.innerHTML = `<div class="cs-empty">No holders found.</div>`
       return
@@ -49,7 +146,7 @@ async function runScan(ui: any, deepScan = false) {
       // Calculate Top 20 hold excluding system wallets
       const top20NonSystem = nonSystemHolders.slice(0, 20)
       const top20Amount = top20NonSystem.reduce((sum, h) => sum + h.humanReadableAmount, 0)
-      const top20Percentage = calculatePercentage(top20Amount, totalSupply)
+      top20Percentage = calculatePercentage(top20Amount, totalSupply)
 
       ui.stats.innerHTML = `
         <div class="cs-stats-row">
@@ -149,6 +246,13 @@ async function runScan(ui: any, deepScan = false) {
 
     renderResults(ui, relevantClusters, amountMap, totalSupply)
 
+    // Auto-load similar tokens if on axiom.trade domain
+    const isAxiomTrade = window.location.hostname.includes('axiom.trade')
+    if (isAxiomTrade && tokenMetadata) {
+      console.log('[Cluster Scanner] Auto-loading similar tokens on axiom.trade')
+      await fetchAndRenderSimilarTokens(ui)
+    }
+
   } catch (err) {
     console.error('[Cluster Scanner] Error:', err)
     ui.content.innerHTML = `<div class="cs-error">${err instanceof Error ? err.message : 'Unknown Error'}</div>`
@@ -223,12 +327,40 @@ function processClusters(clusters: ClusterWithMembers[], amountMap: Map<string, 
     runScan(ui, true)
   })
 
+  ui.tabClusters.addEventListener('click', () => {
+    switchTab(ui, 'clusters')
+  })
+
+  ui.tabSimilar.addEventListener('click', () => {
+    switchTab(ui, 'similar')
+    // Auto-fetch similar tokens when switching to that tab if we have metadata
+    if (tokenMetadata && similarTokensData.length === 0) {
+      fetchAndRenderSimilarTokens(ui)
+    } else if (similarTokensData.length > 0) {
+      // Re-render summary in case it was hidden
+      renderSummary(ui)
+    }
+  })
+
   let lastUrl = location.href
   new MutationObserver(() => {
     if (location.href !== lastUrl) {
       lastUrl = location.href
       console.log('[Cluster Scanner] URL changed, resetting...')
       ui.stats.innerHTML = ''
+
+      // Reset similar tokens data
+      tokenMetadata = null
+      similarTokensData = []
+      currentMarketCap = 0
+      oldestBondedToken = null
+      top20Percentage = ''
+      ui.similarContent.innerHTML = `<div class="cs-loading">Click Refresh to scan</div>`
+      ui.summary.style.display = 'none'
+      ui.summary.innerHTML = ''
+
+      // Switch back to clusters tab
+      switchTab(ui, 'clusters')
 
       const address = extractTokenFromUrl()
       if (address) {

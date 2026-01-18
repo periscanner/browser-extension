@@ -73,6 +73,96 @@ export function createStyles() {
     }
     .cs-close:hover { color: white; }
 
+    .cs-summary {
+      padding: 12px 16px;
+      background: rgba(30, 41, 59, 0.5);
+      border-bottom: 1px solid #334155;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      font-size: 11px;
+    }
+
+    .cs-summary-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 8px;
+      background: rgba(15, 23, 42, 0.4);
+      border-radius: 6px;
+    }
+
+    .cs-summary-label {
+      color: #64748b;
+      font-weight: 500;
+    }
+
+    .cs-summary-value {
+      color: #e2e8f0;
+      font-weight: 600;
+    }
+
+    .cs-summary-bonded-yes {
+      color: #10b981;
+      font-size: 14px;
+    }
+
+    .cs-summary-bonded-no {
+      color: #ef4444;
+      font-size: 14px;
+    }
+
+    .cs-summary-og-btn {
+      background: #2563eb;
+      color: white;
+      padding: 4px 10px;
+      border-radius: 4px;
+      text-decoration: none;
+      font-size: 10px;
+      font-weight: 600;
+      transition: background 0.2s;
+      display: inline-block;
+    }
+
+    .cs-summary-og-btn:hover {
+      background: #1d4ed8;
+    }
+
+    .cs-summary-item.full-width {
+      grid-column: 1 / -1;
+    }
+
+    .cs-tabs {
+      display: flex;
+      gap: 0;
+      background: #0f172a;
+      border-bottom: 1px solid #334155;
+    }
+
+    .cs-tab {
+      flex: 1;
+      padding: 12px;
+      background: none;
+      border: none;
+      color: #64748b;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+
+    .cs-tab:hover {
+      color: #94a3b8;
+      background: rgba(51, 65, 85, 0.3);
+    }
+
+    .cs-tab-active {
+      color: #60a5fa;
+      border-bottom-color: #60a5fa;
+      background: rgba(96, 165, 250, 0.1);
+    }
+
     .cs-stats {
       padding: 12px 16px;
       background: rgba(30, 41, 59, 0.5);
@@ -257,6 +347,135 @@ export function createStyles() {
       box-shadow: 0 8px 16px rgba(0,0,0,0.2);
     }
     .cs-toast.visible { opacity: 1; }
+
+    .cs-similar-token {
+      margin-bottom: 12px;
+      background: rgba(30, 41, 59, 0.3);
+      border-radius: 8px;
+      padding: 12px;
+      border: 1px solid #334155;
+    }
+
+    .cs-similar-token-high-risk {
+      border: 2px solid #dc2626;
+      background: rgba(220, 38, 38, 0.1);
+    }
+
+    .cs-similar-token-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 10px;
+    }
+
+    .cs-similar-token-info {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .cs-similar-token-name-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .cs-similar-token-image {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    .cs-similar-token-name {
+      font-weight: bold;
+      color: #e2e8f0;
+      font-size: 13px;
+    }
+
+    .cs-similar-token-symbol {
+      color: #94a3b8;
+      font-size: 11px;
+    }
+
+    .cs-bonded-badge {
+      display: inline-block;
+      background: #10b981;
+      color: white;
+      font-size: 9px;
+      font-weight: bold;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-top: 2px;
+    }
+
+    .cs-similar-token-meta {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+    }
+
+    .cs-similar-token-date {
+      color: #64748b;
+      font-size: 10px;
+    }
+
+    .cs-similar-token-mcap {
+      color: #fbbf24;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .cs-similar-token-matches {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 10px;
+      padding: 8px;
+      background: rgba(15, 23, 42, 0.4);
+      border-radius: 6px;
+    }
+
+    .cs-match-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: #94a3b8;
+      cursor: default;
+    }
+
+    .cs-match-checkbox input[type="checkbox"] {
+      cursor: default;
+      margin: 0;
+    }
+
+    .cs-match-checkbox input[type="checkbox"]:checked {
+      accent-color: #10b981;
+    }
+
+    .cs-similar-token-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .cs-similar-token-link {
+      flex: 1;
+      text-align: center;
+      padding: 8px;
+      background: #334155;
+      color: #60a5fa;
+      text-decoration: none;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+
+    .cs-similar-token-link:hover {
+      background: #475569;
+    }
   `
   document.head.appendChild(style)
 }
