@@ -1,6 +1,7 @@
 import { fetchScanResults, fetchClustersByWallets, ingestWalletsBulk, fetchSimilarTokens } from './services/api'
 import { extractTokenFromUrl } from './services/scanner'
 
+import { formatNumber, calculatePercentage } from './utils/format'
 import { makeDraggable } from './utils/drag'
 
 import { createStyles } from './ui/styles'
@@ -17,32 +18,47 @@ const SYSTEM_WALLETS = new Set([
 ])
 
 let tokenMetadata: { name: string; symbol: string; imageUrl?: string } | null = null
-let similarTokensData: SimilarToken[] = []
-let currentMarketCap: number = 0
+let similarTokensData: SimilarToken[] | null = null
+let currentMarketCap: number | null = null
 let oldestBondedToken: SimilarToken | null = null
-let top20Percentage: string = ''
+let top20Percentage: string | null = null
 
 function renderSummary(ui: any) {
-  const isBonded = currentMarketCap >= 60000
-  const bondedIcon = isBonded ? '✅' : '❌'
-  const bondedClass = isBonded ? 'cs-summary-bonded-yes' : 'cs-summary-bonded-no'
+  // Bonded Logic
+  let bondedDisplay = '<span style="color: #64748b;">...</span>'
+  if (currentMarketCap !== null) {
+    const isBonded = currentMarketCap >= 60000
+    const bondedIcon = isBonded ? '✅' : '❌'
+    const bondedClass = isBonded ? 'cs-summary-bonded-yes' : 'cs-summary-bonded-no'
+    bondedDisplay = `<span class="${bondedClass}">${bondedIcon}</span>`
+  }
 
-  const ogButton = oldestBondedToken
-    ? `<a href="${oldestBondedToken.axiomLink}" class="cs-summary-og-btn" target="_self">Go to OG</a>`
-    : '<span style="color: #64748b;">N/A</span>'
+  // Similar Tokens Logic
+  const similarCount = similarTokensData !== null ? similarTokensData.length : '...'
+
+  // Top 20 Logic
+  const top20Display = top20Percentage !== null ? top20Percentage : '...'
+
+  // OG Token Logic
+  let ogButton = '<span style="color: #64748b;">...</span>'
+  if (similarTokensData !== null) {
+    ogButton = oldestBondedToken
+      ? `<a href="${oldestBondedToken.axiomLink}" class="cs-summary-og-btn" target="_self">Go to OG</a>`
+      : '<span style="color: #64748b;">N/A</span>'
+  }
 
   ui.summary.innerHTML = `
     <div class="cs-summary-item">
       <span class="cs-summary-label">Bonded:</span>
-      <span class="${bondedClass}">${bondedIcon}</span>
+      ${bondedDisplay}
     </div>
     <div class="cs-summary-item">
       <span class="cs-summary-label">Similar Tokens:</span>
-      <span class="cs-summary-value">${similarTokensData.length}</span>
+      <span class="cs-summary-value">${similarCount}</span>
     </div>
     <div class="cs-summary-item">
       <span class="cs-summary-label">Top 20 Hold:</span>
-      <span class="cs-summary-value">${top20Percentage}</span>
+      <span class="cs-summary-value">${top20Display}</span>
     </div>
     <div class="cs-summary-item">
       <span class="cs-summary-label">OG Token:</span>
@@ -107,6 +123,16 @@ async function runScan(ui: any, deepScan = false) {
   ui.refreshBtn.disabled = true
   ui.deepAnalyzeBtn.disabled = true
 
+  // Reset Globals
+  tokenMetadata = null
+  similarTokensData = null
+  currentMarketCap = null
+  oldestBondedToken = null
+  top20Percentage = null
+
+  // Render initial summary (loading state)
+  renderSummary(ui)
+
   try {
     // 1. Fetch Top Holders
     const scanData: ScanResult = await fetchScanResults(addressFromUrl)
@@ -128,6 +154,7 @@ async function runScan(ui: any, deepScan = false) {
         }
         currentMarketCap = pair.marketCap || 0
         console.log('[Cluster Scanner] Token metadata:', tokenMetadata)
+        renderSummary(ui)
       }
     } catch (metaErr) {
       console.warn('[Cluster Scanner] Failed to fetch token metadata:', metaErr)
@@ -137,6 +164,40 @@ async function runScan(ui: any, deepScan = false) {
       ui.content.innerHTML = `<div class="cs-empty">No holders found.</div>`
       return
     }
+
+    // Filter out system wallets for concentration stats
+    const nonSystemHolders = holders.filter(h => !SYSTEM_WALLETS.has(h.owner))
+
+    const renderStats = (clusterStat?: string) => {
+      // Calculate Top 20 hold excluding system wallets
+      const top20NonSystem = nonSystemHolders.slice(0, 20)
+      const top20Amount = top20NonSystem.reduce((sum, h) => sum + h.humanReadableAmount, 0)
+      top20Percentage = calculatePercentage(top20Amount, totalSupply)
+
+      renderSummary(ui)
+
+      ui.stats.innerHTML = `
+        <div class="cs-stats-row">
+          <span class="cs-stats-label">Total Supply:</span>
+          <span class="cs-stats-value">${formatNumber(totalSupply, 0)}</span>
+        </div>
+        <div class="cs-stats-row">
+          <span class="cs-stats-label">Unique Holders:</span>
+          <span class="cs-stats-value">${scanData.totalUniqueHolders.toLocaleString()}</span>
+        </div>
+        ${clusterStat || ''}
+        <div class="cs-stats-row" title="Excludes LPs and Bonding Curves">
+          <span class="cs-stats-label">Top 20 Hold:</span>
+          <span class="cs-stats-value">${top20Percentage}</span>
+        </div>
+        <div class="cs-stats-row">
+          <span class="cs-stats-label">Decimals:</span>
+          <span class="cs-stats-value">${scanData.metadata.decimals}</span>
+        </div>
+      `
+    }
+
+    renderStats()
 
     const walletAddresses = holders.map((h: TokenHolder) => h.owner)
 
@@ -276,9 +337,9 @@ function processClusters(clusters: ClusterWithMembers[], amountMap: Map<string, 
   ui.tabSimilar.addEventListener('click', () => {
     switchTab(ui, 'similar')
     // Auto-fetch similar tokens when switching to that tab if we have metadata
-    if (tokenMetadata && similarTokensData.length === 0) {
+    if (tokenMetadata && (similarTokensData === null || similarTokensData.length === 0)) {
       fetchAndRenderSimilarTokens(ui)
-    } else if (similarTokensData.length > 0) {
+    } else if (similarTokensData !== null && similarTokensData.length > 0) {
       // Re-render summary in case it was hidden
       renderSummary(ui)
     }
@@ -293,10 +354,10 @@ function processClusters(clusters: ClusterWithMembers[], amountMap: Map<string, 
 
       // Reset similar tokens data
       tokenMetadata = null
-      similarTokensData = []
-      currentMarketCap = 0
+      similarTokensData = null
+      currentMarketCap = null
       oldestBondedToken = null
-      top20Percentage = ''
+      top20Percentage = null
       ui.similarContent.innerHTML = `<div class="cs-loading">Click Refresh to scan</div>`
       ui.summary.style.display = 'none'
       ui.summary.innerHTML = ''
