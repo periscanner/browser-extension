@@ -1,5 +1,12 @@
 # Changelog
 
+# [1.1.0](https://github.com/periscanner/browser-extension/compare/v1.0.15...v1.1.0) (2026-01-18)
+
+
+### Features
+
+* Similar tokens list feat ([f32c22d](https://github.com/periscanner/browser-extension/commit/f32c22d0d42700d7f87fb9e86c339bbab8c15513))
+
 ## [1.0.15](https://github.com/periscanner/browser-extension/compare/v1.0.14...v1.0.15) (2026-01-17)
 
 ## [1.0.14](https://github.com/periscanner/browser-extension/compare/v1.0.13...v1.0.14) (2026-01-17)
