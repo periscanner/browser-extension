@@ -9,7 +9,7 @@ export function createWidgetElements() {
     </button>
     <div id="cs-panel" class="cs-panel">
       <div class="cs-header">
-        <h3>Cluster Scanner</h3>
+        <h3>Periscanner</h3>
         <button id="cs-close" class="cs-close">×</button>
       </div>
       <div id="cs-summary" class="cs-summary" style="display: none;"></div>

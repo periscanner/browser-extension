@@ -58,7 +58,7 @@ export function createStyles() {
     .cs-panel.visible { display: flex; }
 
     .cs-header {
-      padding: 16px;
+      padding: 8px;
       background: #1e293b;
       border-bottom: 1px solid #334155;
       display: flex;

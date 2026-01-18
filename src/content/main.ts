@@ -1,7 +1,6 @@
 import { fetchScanResults, fetchClustersByWallets, ingestWalletsBulk, fetchSimilarTokens } from './services/api'
 import { extractTokenFromUrl } from './services/scanner'
 
-import { formatNumber, calculatePercentage } from './utils/format'
 import { makeDraggable } from './utils/drag'
 
 import { createStyles } from './ui/styles'
@@ -139,38 +138,6 @@ async function runScan(ui: any, deepScan = false) {
       return
     }
 
-    // Filter out system wallets for concentration stats
-    const nonSystemHolders = holders.filter(h => !SYSTEM_WALLETS.has(h.owner))
-
-    const renderStats = (clusterStat?: string) => {
-      // Calculate Top 20 hold excluding system wallets
-      const top20NonSystem = nonSystemHolders.slice(0, 20)
-      const top20Amount = top20NonSystem.reduce((sum, h) => sum + h.humanReadableAmount, 0)
-      top20Percentage = calculatePercentage(top20Amount, totalSupply)
-
-      ui.stats.innerHTML = `
-        <div class="cs-stats-row">
-          <span class="cs-stats-label">Total Supply:</span>
-          <span class="cs-stats-value">${formatNumber(totalSupply, 0)}</span>
-        </div>
-        <div class="cs-stats-row">
-          <span class="cs-stats-label">Unique Holders:</span>
-          <span class="cs-stats-value">${scanData.totalUniqueHolders.toLocaleString()}</span>
-        </div>
-        ${clusterStat || ''}
-        <div class="cs-stats-row" title="Excludes LPs and Bonding Curves">
-          <span class="cs-stats-label">Top 20 Hold:</span>
-          <span class="cs-stats-value">${top20Percentage}</span>
-        </div>
-        <div class="cs-stats-row">
-          <span class="cs-stats-label">Decimals:</span>
-          <span class="cs-stats-value">${scanData.metadata.decimals}</span>
-        </div>
-      `
-    }
-
-    renderStats()
-
     const walletAddresses = holders.map((h: TokenHolder) => h.owner)
 
     const amountMap = new Map<string, number>(
@@ -218,31 +185,6 @@ async function runScan(ui: any, deepScan = false) {
     console.log('[Cluster Scanner] Raw clusters:', clusters)
 
     const relevantClusters = processClusters(clusters, amountMap)
-
-    // Calculate Periscanner Cluster %
-    const clusterWallets = new Set<string>()
-    let clusterTotalAmount = 0
-    relevantClusters.forEach(c => {
-      c.members.forEach(m => {
-        if (!clusterWallets.has(m.wallet_address)) {
-          clusterWallets.add(m.wallet_address)
-          clusterTotalAmount += amountMap.get(m.wallet_address) || 0
-        }
-      })
-    })
-
-    if (clusterWallets.size > 0) {
-      const clusterPercentage = calculatePercentage(clusterTotalAmount, totalSupply)
-      const clusterStatHtml = `
-        <div class="cs-stats-row" style="color: #60a5fa; font-weight: bold;">
-          <span class="cs-stats-label" style="color: #60a5fa;">Periscanner Cluster %:</span>
-          <span class="cs-stats-value">${clusterWallets.size} Wallets Hold: ${clusterPercentage}</span>
-        </div>
-      `
-      renderStats(clusterStatHtml)
-    }
-
-    console.log('[Cluster Scanner] Relevant clusters after processing:', relevantClusters)
 
     renderResults(ui, relevantClusters, amountMap, totalSupply)
 
