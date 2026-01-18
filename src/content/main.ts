@@ -133,32 +133,36 @@ async function runScan(ui: any, deepScan = false) {
   // Render initial summary (loading state)
   renderSummary(ui)
 
+  // Resolve pair to mint if possible using DexScreener
+  let mintAddress = addressFromUrl
+  try {
+    const dexResponse = await fetch(`https://api.dexscreener.com/latest/dex/pairs/solana/${addressFromUrl}`)
+    const dexData: any = await dexResponse.json()
+    if (dexData.pairs && dexData.pairs.length > 0) {
+      const pair = dexData.pairs[0]
+      mintAddress = pair.baseToken.address // Use the resolved mint address
+
+      tokenMetadata = {
+        name: pair.baseToken.name,
+        symbol: pair.baseToken.symbol,
+        imageUrl: pair.info?.imageUrl
+      }
+      currentMarketCap = pair.marketCap || 0
+      console.log('[Cluster Scanner] Resolved Mint:', mintAddress)
+      console.log('[Cluster Scanner] Token metadata:', tokenMetadata)
+      renderSummary(ui)
+    }
+  } catch (metaErr) {
+    console.warn('[Cluster Scanner] Failed to fetch/resolve token metadata:', metaErr)
+  }
+
   try {
     // 1. Fetch Top Holders
-    const scanData: ScanResult = await fetchScanResults(addressFromUrl)
+    const scanData: ScanResult = await fetchScanResults(mintAddress)
     console.log('[Cluster Scanner] Scan data:', scanData)
 
     const holders: TokenHolder[] = scanData.holders || []
     const totalSupply = scanData.stats.totalSupply
-
-    // 2. Fetch token metadata from DexScreener for similar tokens feature
-    try {
-      const dexResponse = await fetch(`https://api.dexscreener.com/latest/dex/pairs/solana/${addressFromUrl}`)
-      const dexData: any = await dexResponse.json()
-      if (dexData.pairs && dexData.pairs.length > 0) {
-        const pair = dexData.pairs[0]
-        tokenMetadata = {
-          name: pair.baseToken.name,
-          symbol: pair.baseToken.symbol,
-          imageUrl: pair.info?.imageUrl
-        }
-        currentMarketCap = pair.marketCap || 0
-        console.log('[Cluster Scanner] Token metadata:', tokenMetadata)
-        renderSummary(ui)
-      }
-    } catch (metaErr) {
-      console.warn('[Cluster Scanner] Failed to fetch token metadata:', metaErr)
-    }
 
     if (holders.length === 0) {
       ui.content.innerHTML = `<div class="cs-empty">No holders found.</div>`
