@@ -1,5 +1,5 @@
-import { fetchScanResults, fetchClustersByWallets, submitIngestJob, pollIngestJob, fetchSimilarTokens, fetchDevCheck } from './services/api'
-import type { DevCheckResult } from './services/api'
+import { fetchScanResults, fetchClustersByWallets, submitIngestJob, pollIngestJob, fetchSimilarTokens, fetchDevCheck, fetchInsiders } from './services/api'
+import type { DevCheckResult, InsiderResult } from './services/api'
 import { extractTokenFromUrl, extractMintFromDom } from './services/scanner'
 
 import { calculatePercentage } from './utils/format'
@@ -7,7 +7,7 @@ import { makeDraggable } from './utils/drag'
 
 import { createStyles } from './ui/styles'
 import { createWidgetElements } from './ui/dom'
-import { renderResults, renderSimilarTokens } from './ui/render'
+import { renderResults, renderSimilarTokens, renderInsiders } from './ui/render'
 
 import type { ClusterMember, ClusterWithMembers, ScanResult, TokenHolder, SimilarToken } from './types'
 
@@ -25,10 +25,10 @@ let oldestBondedToken: SimilarToken | null = null
 let top20Percentage: string | null = null
 let currentMint: string | null = null
 let clusterCount: number | null = null
-let uniqueHolders: number | null = null
 let currentSupply: number | null = null
 let devCheckData: DevCheckResult | null = null
-let clusterTop: { pct: number; count: number } | null = null
+let currentHolderOwners: string[] = []
+let insidersData: InsiderResult | null = null
 
 // Dev moved >= this % of supply to personal (non-market) wallets → RUG ALERT.
 const RUG_TRANSFER_PCT = 1
@@ -113,17 +113,6 @@ function renderTop(ui: any) {
     chips.push(chip('Bonded', '…'))
   }
 
-  const clCls = clusterCount === null ? '' : clusterCount >= 3 ? 'is-danger' : clusterCount >= 1 ? 'is-warn' : 'is-safe'
-  chips.push(chip('Clusters', `<span class="cs-mono">${clusterCount ?? '…'}</span>`, clCls))
-
-  // Biggest coordinated holder (split-supply detection).
-  if (clusterTop) {
-    const tcCls = clusterTop.pct >= 20 ? 'is-danger' : clusterTop.pct >= 8 ? 'is-warn' : 'is-muted'
-    chips.push(chip('Top cluster', `<span class="cs-mono">${clusterTop.pct.toFixed(1)}% · ${clusterTop.count}w</span>`, tcCls))
-  }
-
-  chips.push(chip('Holders', `<span class="cs-mono">${uniqueHolders !== null ? uniqueHolders.toLocaleString() : '…'}</span>`, 'is-muted'))
-
   if (similarTokensData !== null) {
     chips.push(chip('Similar', `<span class="cs-mono">${similarTokensData.length}</span>`, similarTokensData.length > 0 ? 'is-warn' : 'is-muted'))
     if (oldestBondedToken) {
@@ -163,17 +152,37 @@ async function fetchAndRenderSimilarTokens(ui: any) {
   }
 }
 
-function switchTab(ui: any, tab: 'clusters' | 'similar') {
-  if (tab === 'clusters') {
-    ui.tabClusters.classList.add('cs-tab-active')
-    ui.tabSimilar.classList.remove('cs-tab-active')
-    ui.content.style.display = 'block'
-    ui.similarContent.style.display = 'none'
-  } else {
-    ui.tabSimilar.classList.add('cs-tab-active')
-    ui.tabClusters.classList.remove('cs-tab-active')
-    ui.content.style.display = 'none'
-    ui.similarContent.style.display = 'block'
+function switchTab(ui: any, tab: 'clusters' | 'insiders' | 'similar') {
+  const panels: Record<string, HTMLElement> = {
+    clusters: ui.content,
+    insiders: ui.insiderContent,
+    similar: ui.similarContent,
+  }
+  const buttons: Record<string, HTMLElement> = {
+    clusters: ui.tabClusters,
+    insiders: ui.tabInsiders,
+    similar: ui.tabSimilar,
+  }
+  for (const k of ['clusters', 'insiders', 'similar']) {
+    const active = k === tab
+    buttons[k].classList.toggle('cs-tab-active', active)
+    panels[k].style.display = active ? 'block' : 'none'
+  }
+}
+
+// Lazy-load the Insider Clusters tab (token-transfer graph among top holders).
+async function loadInsiders(ui: any) {
+  if (!currentMint || currentHolderOwners.length === 0) {
+    ui.insiderContent.innerHTML = `<div class="cs-empty">Scan a token first.</div>`
+    return
+  }
+  ui.insiderContent.innerHTML = `<div class="cs-loading">Scanning insider transfers…</div>`
+  try {
+    insidersData = await fetchInsiders(currentMint, currentHolderOwners)
+    renderInsiders(ui, insidersData.clusters, currentSupply || 0)
+  } catch (err) {
+    console.error('[Cluster Scanner] Insider scan error:', err)
+    ui.insiderContent.innerHTML = `<div class="cs-error">Failed to scan insiders.</div>`
   }
 }
 
@@ -197,14 +206,15 @@ async function runScan(ui: any, deepScan = false) {
   top20Percentage = null
   currentMint = addressFromUrl
   clusterCount = null
-  uniqueHolders = null
   currentSupply = null
   devCheckData = null
-  clusterTop = null
+  currentHolderOwners = []
+  insidersData = null
 
   // Render initial header/KPIs (loading state) + clear any prior RUG banner
   renderTop(ui)
   renderAlert(ui)
+  ui.insiderContent.innerHTML = `<div class="cs-loading">Open this tab to scan insider transfers</div>`
 
   // Resolve the URL address to the canonical token MINT (+ metadata). The
   // /meme/<id> path can be the mint OR an AMM pool id, and brand-new tokens
@@ -278,10 +288,11 @@ async function runScan(ui: any, deepScan = false) {
     const top20NonSystem = nonSystemHolders.slice(0, 20)
     const top20Amount = top20NonSystem.reduce((sum, h) => sum + h.humanReadableAmount, 0)
     top20Percentage = calculatePercentage(top20Amount, totalSupply)
-    uniqueHolders = scanData.totalUniqueHolders
     renderTop(ui)
 
     const walletAddresses = holders.map((h: TokenHolder) => h.owner)
+    // Top holders for the (lazy-loaded) Insider Clusters tab.
+    currentHolderOwners = nonSystemHolders.map((h: TokenHolder) => h.owner)
 
     const amountMap = new Map<string, number>(
       holders.map((h: TokenHolder) => [h.owner, h.humanReadableAmount])
@@ -362,11 +373,6 @@ async function runScan(ui: any, deepScan = false) {
 
     const relevantClusters = processClusters(clusters, amountMap)
     clusterCount = relevantClusters.length
-    // Biggest coordinated holder = largest cluster's combined share (clusters
-    // are sorted by total amount, so [0] is the largest).
-    clusterTop = relevantClusters.length && totalSupply > 0
-      ? { pct: (relevantClusters[0].totalAmount / totalSupply) * 100, count: relevantClusters[0].members.length }
-      : null
     renderTop(ui)
 
     renderResults(ui, relevantClusters, amountMap, totalSupply)
@@ -495,6 +501,14 @@ function processClusters(clusters: ClusterWithMembers[], amountMap: Map<string, 
     switchTab(ui, 'clusters')
   })
 
+  ui.tabInsiders.addEventListener('click', () => {
+    switchTab(ui, 'insiders')
+    // Lazy-load on first open (cached for the rest of the scan).
+    if (insidersData === null) {
+      loadInsiders(ui)
+    }
+  })
+
   ui.tabSimilar.addEventListener('click', () => {
     switchTab(ui, 'similar')
     // Auto-fetch similar tokens when switching to that tab if we have metadata
@@ -520,11 +534,12 @@ function processClusters(clusters: ClusterWithMembers[], amountMap: Map<string, 
       top20Percentage = null
       currentMint = null
       clusterCount = null
-      uniqueHolders = null
       currentSupply = null
       devCheckData = null
-      clusterTop = null
+      currentHolderOwners = []
+      insidersData = null
       ui.similarContent.innerHTML = `<div class="cs-loading">Scan a token first</div>`
+      ui.insiderContent.innerHTML = `<div class="cs-loading">Scan a token first</div>`
       renderTop(ui)
       renderAlert(ui)
 

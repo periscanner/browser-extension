@@ -102,6 +102,35 @@ export async function pollIngestJob(
   }
 }
 
+// ---- Insider clusters (token-transfer graph among holders) ----
+
+export interface InsiderMember {
+  wallet: string
+  received: number
+  sent: number
+  role: 'source' | 'insider' | 'relay'
+}
+export interface InsiderCluster {
+  members: InsiderMember[]
+  transfers: { from: string; to: string; amount: number }[]
+  transferredAmount: number
+  insiderCount: number
+}
+export interface InsiderResult {
+  status: 'ok' | 'unknown'
+  clusters: InsiderCluster[]
+}
+
+export async function fetchInsiders(mint: string, wallets: string[]): Promise<InsiderResult> {
+  const response = await fetch(`${API_URL}/extension/insiders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mint, wallets })
+  })
+  if (!response.ok) throw new Error('Failed to scan insiders')
+  return await response.json()
+}
+
 // ---- Dev / creator rug check ----
 
 export interface DevCheckResult {

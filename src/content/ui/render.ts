@@ -1,5 +1,6 @@
 import { formatNumber, calculatePercentage } from '../utils/format'
 import { ClusterMember, SimilarToken } from '../types'
+import type { InsiderCluster } from '../services/api'
 
 type Severity = 'danger' | 'warn' | 'low'
 
@@ -131,6 +132,76 @@ function ageString(pairCreatedAt?: number): string {
   const hrs = Math.floor(mins / 60)
   if (hrs < 24) return `${hrs}h`
   return `${Math.floor(hrs / 24)}d`
+}
+
+const INSIDER_SEV_COLOR = { danger: '#f43f5e', warn: '#f59e0b', low: '#71717a' }
+
+export function renderInsiders(ui: any, clusters: InsiderCluster[], totalSupply: number) {
+  if (!clusters.length) {
+    ui.insiderContent.innerHTML = `<div class="cs-empty">No insider transfers among top holders — they bought on-market, not received.</div>`
+    return
+  }
+
+  const totalPct = clusters.reduce((s, c) => s + (totalSupply > 0 ? (c.transferredAmount / totalSupply) * 100 : 0), 0)
+  const headCls = totalPct > 5 ? 'is-danger' : totalPct > 1 ? 'is-warn' : ''
+  const summary = `
+    <div class="cs-cabal">
+      <div class="cs-cabal-head">
+        <span class="cs-cabal-label">${clusters.length} insider group${clusters.length > 1 ? 's' : ''} · supply received by transfer</span>
+        <span class="cs-cabal-value cs-mono ${headCls}">${totalPct.toFixed(1)}%</span>
+      </div>
+    </div>`
+
+  const cards = clusters.map((c) => {
+    const pct = totalSupply > 0 ? (c.transferredAmount / totalSupply) * 100 : 0
+    const sev = (pct >= 5 ? 'danger' : pct >= 1 ? 'warn' : 'low') as keyof typeof INSIDER_SEV_COLOR
+    const color = INSIDER_SEV_COLOR[sev]
+    const source = c.members.find((m) => m.role !== 'insider') || c.members[0]
+
+    const rows = c.members.map((m) => {
+      const amt = m.role === 'source' ? m.sent : m.received
+      const roleCls = m.role === 'source' ? 'cs-row-role--accent' : m.role === 'relay' ? 'cs-row-role--warn' : ''
+      return `
+        <div class="cs-row">
+          <span class="cs-row-addr cs-mono" data-full-address="${m.wallet}" title="Click to copy">${m.wallet.slice(0, 4)}…${m.wallet.slice(-3)}</span>
+          <span class="cs-row-role ${roleCls}">${m.role}</span>
+          <span class="cs-row-amount cs-mono">${formatNumber(amt)}</span>
+          <span class="cs-row-supply cs-mono" style="color:${color}">${calculatePercentage(amt, totalSupply)}</span>
+        </div>`
+    }).join('')
+
+    return `
+      <div class="cs-cluster cs-cluster--${sev}">
+        <div class="cs-cluster-head">
+          <div class="cs-cluster-title">
+            <span class="cs-cluster-sev" style="background:${color}"></span>
+            <span class="cs-cluster-name cs-mono">${source.wallet.slice(0, 4)}…${source.wallet.slice(-3)} → ${c.insiderCount} insider${c.insiderCount > 1 ? 's' : ''}</span>
+            <span class="cs-cluster-count cs-mono">${c.members.length}</span>
+          </div>
+          <div class="cs-cluster-head-right">
+            <span class="cs-cluster-pct cs-mono" style="color:${color}">${pct.toFixed(1)}%</span>
+            <svg class="cs-cluster-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+        </div>
+        <div class="cs-cluster-body">
+          <div class="cs-thead"><span>Wallet</span><span>Role</span><span>Amount</span><span>Supply</span></div>
+          ${rows}
+        </div>
+      </div>`
+  }).join('')
+
+  ui.insiderContent.innerHTML = summary + cards
+
+  ui.insiderContent.querySelectorAll('.cs-cluster-head').forEach((head: HTMLElement) => {
+    head.addEventListener('click', () => head.parentElement?.classList.toggle('is-open'))
+  })
+  ui.insiderContent.querySelectorAll('.cs-row-addr').forEach((el: HTMLElement) => {
+    el.addEventListener('click', async (e: Event) => {
+      e.stopPropagation()
+      const a = (e.currentTarget as HTMLElement).getAttribute('data-full-address')
+      if (a) { try { await navigator.clipboard.writeText(a); showToast('Wallet copied') } catch { /* ignore */ } }
+    })
+  })
 }
 
 export function renderSimilarTokens(
