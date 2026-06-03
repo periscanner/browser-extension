@@ -8,6 +8,7 @@ const logoSrc = chrome.runtime.getURL(logoUrl)
 
 const REFRESH_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v5h-5"/></svg>`
 const RADAR_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>`
+const BOLT_SVG = `<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M13 2 4.5 13.5H11l-1 8.5L19.5 10H13z"/></svg>`
 
 export function createWidgetElements() {
   const widget = document.createElement('div')
@@ -59,6 +60,7 @@ export function createWidgetElements() {
 
       <div class="cs-footer">
         <button id="cs-refresh" class="cs-refresh" title="Refresh scan">${REFRESH_SVG}</button>
+        <button id="cs-auto" class="cs-auto" title="Auto deep-scan every token you open">${BOLT_SVG}<span>Auto</span></button>
         <button id="cs-deep-analyze" class="cs-deep-analyze" title="Analyze unknown top holders">${RADAR_SVG}<span>Deep Scan</span></button>
       </div>
     </div>
@@ -77,6 +79,7 @@ export function createWidgetElements() {
     insiderContent: widget.querySelector('#cs-insider-content') as HTMLElement,
     similarContent: widget.querySelector('#cs-similar-content') as HTMLElement,
     refreshBtn: widget.querySelector('#cs-refresh') as HTMLButtonElement,
+    autoBtn: widget.querySelector('#cs-auto') as HTMLButtonElement,
     deepAnalyzeBtn: widget.querySelector('#cs-deep-analyze') as HTMLButtonElement,
     tabClusters: widget.querySelector('#cs-tab-clusters') as HTMLButtonElement,
     tabInsiders: widget.querySelector('#cs-tab-insiders') as HTMLButtonElement,

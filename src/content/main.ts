@@ -33,6 +33,11 @@ let insidersData: InsiderResult | null = null
 // Dev moved >= this % of supply to personal (non-market) wallets → RUG ALERT.
 const RUG_TRANSFER_PCT = 1
 
+// Auto deep-scan every token on navigation (toggled in the footer, persisted).
+let autoDeep = false
+// Incremented per scan; stale scans (e.g. fast navigation) bail before rendering.
+let scanGen = 0
+
 // % of supply the dev moved to personal (non-market) wallets, 0 if unknown.
 function devMovedPct(): number {
   if (!devCheckData || devCheckData.status !== 'ok' || !currentSupply) return 0
@@ -190,6 +195,7 @@ async function loadInsiders(ui: any, deep = false) {
 }
 
 async function runScan(ui: any, deepScan = false) {
+  const myGen = ++scanGen // this scan owns the UI until a newer scan starts
   const addressFromUrl = extractTokenFromUrl()
 
   if (!addressFromUrl) {
@@ -252,17 +258,28 @@ async function runScan(ui: any, deepScan = false) {
     // 1. Fetch Top Holders (the worker resolves + returns the canonical mint).
     let scanData: ScanResult | null = await scanPromise.catch(() => null)
 
-    // Brand-new tokens the worker can't resolve (not on DexScreener): retry once
-    // with the mint read straight from the page DOM so a pool id never scans empty.
+    // Fresh tokens: the worker can't resolve the /meme/<pool> id yet (not on
+    // DexScreener), and right after navigation Axiom may not have rendered the
+    // mint into the page. Retry with the page mint, backing off while the page
+    // finishes loading — this is what stops the "could not find account" RPC
+    // error on token entry. Bail if a newer navigation superseded us.
     if (!scanData || !(scanData.holders || []).length) {
-      const domMint = extractMintFromDom()
-      if (domMint && domMint !== addressFromUrl) {
-        mintAddress = domMint
-        scanData = await fetchScanResults(domMint).catch(() => null)
+      const delays = [250, 500, 900, 1200]
+      for (const d of delays) {
+        await new Promise(r => setTimeout(r, d))
+        if (scanGen !== myGen) return
+        const domMint = extractMintFromDom()
+        if (domMint && domMint !== addressFromUrl && domMint !== mintAddress) {
+          mintAddress = domMint
+          const retry = await fetchScanResults(domMint).catch(() => null)
+          if (retry && (retry.holders || []).length) { scanData = retry; break }
+          scanData = scanData || retry
+        }
       }
     }
-    if (!scanData) {
-      ui.content.innerHTML = `<div class="cs-error">Could not scan this token.</div>`
+    if (scanGen !== myGen) return
+    if (!scanData || !(scanData.holders || []).length) {
+      ui.content.innerHTML = `<div class="cs-error">Couldn't load this token yet — hit Refresh in a moment.</div>`
       return
     }
     console.log('[Cluster Scanner] Scan data:', scanData)
@@ -334,7 +351,7 @@ async function runScan(ui: any, deepScan = false) {
           let refreshing = false
           let stopped = false
           const renderLive = async (label: string) => {
-            if (refreshing || stopped) return
+            if (refreshing || stopped || scanGen !== myGen) return
             refreshing = true
             try {
               const live = await fetchClustersByWallets(walletAddresses)
@@ -374,6 +391,7 @@ async function runScan(ui: any, deepScan = false) {
     }
 
     // 4. Process & Render
+    if (scanGen !== myGen) return // a newer scan (e.g. fast navigation) took over
     console.log('[Cluster Scanner] Raw clusters:', clusters)
 
     const relevantClusters = processClusters(clusters, amountMap)
@@ -441,12 +459,30 @@ function processClusters(clusters: ClusterWithMembers[], amountMap: Map<string, 
 
   const dragSystem = makeDraggable(ui.container, ui.toggleBtn)
 
+  // Auto deep-scan toggle (persisted): when on, navigating to a token auto-runs
+  // the deep scan instead of a normal scan, for faster hands-off research.
+  const updateAutoBtn = () => ui.autoBtn.classList.toggle('is-on', autoDeep)
+  try {
+    chrome.storage?.local.get(['psc_auto_deep'], (r: any) => {
+      autoDeep = !!r?.psc_auto_deep
+      updateAutoBtn()
+    })
+  } catch { /* storage unavailable */ }
+
+  ui.autoBtn.addEventListener('click', () => {
+    autoDeep = !autoDeep
+    updateAutoBtn()
+    try { chrome.storage?.local.set({ psc_auto_deep: autoDeep }) } catch { /* ignore */ }
+    // Turning it on while viewing a token kicks off a deep scan right away.
+    if (autoDeep && extractTokenFromUrl()) runScan(ui, true)
+  })
+
   function toggleWidget() {
     const isClosed = ui.panel.style.display === 'none' || ui.panel.style.display === ''
     if (isClosed) {
       ui.panel.style.display = 'flex'
       if (ui.content.innerText.includes('Click to scan')) {
-        runScan(ui, false)
+        runScan(ui, autoDeep)
       }
     } else {
       ui.panel.style.display = 'none'
@@ -553,8 +589,8 @@ function processClusters(clusters: ClusterWithMembers[], amountMap: Map<string, 
 
       const address = extractTokenFromUrl()
       if (address) {
-        // Auto-scan if we detect a valid token in the new URL
-        runScan(ui, false)
+        // Auto-scan the new token — deep scan if the user enabled Auto mode.
+        runScan(ui, autoDeep)
       } else {
         ui.content.innerHTML = `<div class="cs-loading">Navigate to a Token Page to scan.</div>`
       }

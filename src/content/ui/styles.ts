@@ -387,6 +387,22 @@ export function createStyles() {
     }
     .cs-refresh:hover { background: var(--ps-border); }
     .cs-refresh svg { width: 16px; height: 16px; }
+    .cs-auto {
+      height: 38px; flex-shrink: 0;
+      display: flex; align-items: center; gap: 5px; padding: 0 10px;
+      background: var(--ps-bg-2); color: var(--ps-z400);
+      border: 1px solid var(--ps-border); border-radius: 8px;
+      font-family: inherit; font-size: 11px; font-weight: 600; cursor: pointer;
+      transition: all 0.12s;
+    }
+    .cs-auto svg { width: 13px; height: 13px; }
+    .cs-auto:hover { background: var(--ps-border); color: var(--ps-z200); }
+    .cs-auto.is-on {
+      color: var(--ps-azure); background: rgba(14, 165, 233, 0.12);
+      border-color: rgba(14, 165, 233, 0.35);
+    }
+    .cs-auto:active { transform: scale(0.97); }
+
     .cs-deep-analyze {
       flex: 1; height: 38px;
       display: flex; align-items: center; justify-content: center; gap: 7px;
