@@ -1,12 +1,17 @@
 // Bundle the logo with the extension (no remote-storage dependency).
+// Vite emits a root-relative path (e.g. "/assets/…svg"); inside a content
+// script that would resolve against the host page (axiom.trade) and 404, so
+// resolve it to a chrome-extension:// URL. The asset is in web_accessible_resources.
 import logoUrl from '../../assets/LOGO_CIRCLE_TRANSPARENT_100x100.svg'
+
+const logoSrc = chrome.runtime.getURL(logoUrl)
 
 export function createWidgetElements() {
   const widget = document.createElement('div')
   widget.id = 'cluster-scanner-widget'
   widget.innerHTML = `
     <button id="cs-toggle" class="cs-toggle" title="Drag to move, click to toggle">
-      <img src="${logoUrl}" alt="Scanner" />
+      <img src="${logoSrc}" alt="Scanner" />
     </button>
     <div id="cs-panel" class="cs-panel">
       <div class="cs-header">
