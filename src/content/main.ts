@@ -98,6 +98,21 @@ function renderTop(ui: any) {
   const chips: string[] = []
   chips.push(chip('Top 20', `<span class="cs-mono">${top20Percentage ?? '…'}</span>`, t20Cls))
 
+  // Insider supply % (once insiders have been scanned — auto-fetched in Auto mode).
+  if (insidersData?.status === 'ok' && currentSupply) {
+    const supply = currentSupply
+    const insiderPct = insidersData.clusters.reduce((s, c) => s + (c.transferredAmount / supply) * 100, 0)
+    const inCls = insiderPct >= 5 ? 'is-danger' : insiderPct >= 1 ? 'is-warn' : 'is-safe'
+    chips.push(chip('Insider', `<span class="cs-mono">${insiderPct.toFixed(1)}%</span>`, inCls))
+  }
+
+  if (currentMarketCap !== null) {
+    const bonded = currentMarketCap >= 60000
+    chips.push(chip('Bonded', bonded ? 'Yes' : 'No', bonded ? 'is-safe' : 'is-warn'))
+  } else {
+    chips.push(chip('Bonded', '…'))
+  }
+
   // Dev status — moved / sold / holds.
   if (devCheckData?.status === 'ok') {
     const moved = devMovedPct()
@@ -111,15 +126,10 @@ function renderTop(ui: any) {
     chips.push(chip('Dev', `<span class="cs-mono">${v}</span>`, cls))
   }
 
-  if (currentMarketCap !== null) {
-    const bonded = currentMarketCap >= 60000
-    chips.push(chip('Bonded', bonded ? 'Yes' : 'No', bonded ? 'is-safe' : 'is-warn'))
-  } else {
-    chips.push(chip('Bonded', '…'))
-  }
-
+  // Times this token has been created (this launch + matching re-launches found).
   if (similarTokensData !== null) {
-    chips.push(chip('Similar', `<span class="cs-mono">${similarTokensData.length}</span>`, similarTokensData.length > 0 ? 'is-warn' : 'is-muted'))
+    const created = similarTokensData.length + 1
+    chips.push(chip('Created', `<span class="cs-mono">${created}×</span>`, created >= 4 ? 'is-danger' : created >= 2 ? 'is-warn' : 'is-muted'))
     if (oldestBondedToken) {
       chips.push(chip('OG token', `<a href="${oldestBondedToken.axiomLink}" target="_self" class="cs-kpi-link">Go to OG →</a>`))
     }
@@ -177,20 +187,29 @@ function switchTab(ui: any, tab: 'clusters' | 'insiders' | 'similar') {
 
 // Lazy-load the Insider Clusters tab (token-transfer graph among top holders).
 // deep = follow the transfer graph multi-hop (A→B→C) instead of just direct.
-async function loadInsiders(ui: any, deep = false) {
+// background = auto-fetch (Auto mode): don't show the "scanning" placeholder,
+// just populate the tab + the Insider % chip when done.
+async function loadInsiders(ui: any, deep = false, background = false) {
   if (!currentMint || currentHolderOwners.length === 0) {
-    ui.insiderContent.innerHTML = `<div class="cs-empty">Scan a token first.</div>`
+    if (!background) ui.insiderContent.innerHTML = `<div class="cs-empty">Scan a token first.</div>`
     return
   }
-  ui.insiderContent.innerHTML = `<div class="cs-loading">${deep ? 'Deep scanning insider transfers (multi-hop)…' : 'Scanning insider transfers…'}</div>`
+  const gen = scanGen
+  const mint = currentMint
+  const owners = currentHolderOwners
+  if (!background) {
+    ui.insiderContent.innerHTML = `<div class="cs-loading">${deep ? 'Deep scanning insider transfers (multi-hop)…' : 'Scanning insider transfers…'}</div>`
+  }
   try {
-    insidersData = await fetchInsiders(currentMint, currentHolderOwners, deep)
-    renderInsiders(ui, insidersData.clusters, currentSupply || 0, deep)
-    // Wire the "Multi-hop deep scan" button (present only in shallow mode).
+    const data = await fetchInsiders(mint, owners, deep)
+    if (scanGen !== gen) return // a newer scan took over
+    insidersData = data
+    renderTop(ui) // refresh the Insider % chip
+    renderInsiders(ui, data.clusters, currentSupply || 0, deep)
     ui.insiderContent.querySelector('#cs-insider-deep')?.addEventListener('click', () => loadInsiders(ui, true))
   } catch (err) {
     console.error('[Cluster Scanner] Insider scan error:', err)
-    ui.insiderContent.innerHTML = `<div class="cs-error">Failed to scan insiders.</div>`
+    if (!background) ui.insiderContent.innerHTML = `<div class="cs-error">Failed to scan insiders.</div>`
   }
 }
 
@@ -415,6 +434,12 @@ async function runScan(ui: any, deepScan = false) {
     if (isAxiomTrade && tokenMetadata) {
       console.log('[Cluster Scanner] Auto-loading similar tokens on axiom.trade')
       await fetchAndRenderSimilarTokens(ui)
+    }
+
+    // In Auto mode, also pre-fetch insiders in the background so the Insider %
+    // chip + tab are ready without the user opening the Insiders tab.
+    if (autoDeep && insidersData === null) {
+      void loadInsiders(ui, false, true)
     }
 
   } catch (err) {
