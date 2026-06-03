@@ -1,7 +1,7 @@
 import { fetchScanResults, fetchClustersByWallets, submitIngestJob, pollIngestJob, fetchSimilarTokens } from './services/api'
 import { extractTokenFromUrl } from './services/scanner'
 
-import { formatNumber, calculatePercentage } from './utils/format'
+import { calculatePercentage } from './utils/format'
 import { makeDraggable } from './utils/drag'
 
 import { createStyles } from './ui/styles'
@@ -22,50 +22,67 @@ let similarTokensData: SimilarToken[] | null = null
 let currentMarketCap: number | null = null
 let oldestBondedToken: SimilarToken | null = null
 let top20Percentage: string | null = null
+let currentMint: string | null = null
+let clusterCount: number | null = null
+let uniqueHolders: number | null = null
 
-function renderSummary(ui: any) {
-  // Bonded Logic
-  let bondedDisplay = '<span style="color: #64748b;">...</span>'
+// Renders the header (token identity + derived risk verdict) and the KPI chip
+// strip. Safe to call at any scan stage — missing values render as placeholders.
+function renderTop(ui: any) {
+  const hasToken = !!tokenMetadata
+  const symbol = hasToken ? `$${tokenMetadata!.symbol || tokenMetadata!.name || '???'}` : 'Periscanner'
+  const mintShort = currentMint
+    ? `${currentMint.slice(0, 4)}…${currentMint.slice(-4)}`
+    : (hasToken ? '' : 'no token loaded')
+  const avatar = hasToken && tokenMetadata!.imageUrl
+    ? `<div class="cs-token-avatar"><img src="${tokenMetadata!.imageUrl}" alt="" /><span class="cs-token-dot"></span></div>`
+    : `<div class="cs-token-avatar"><div class="cs-token-glyph"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg></div></div>`
+  ui.token.innerHTML = `${avatar}<div class="cs-token-meta"><span class="cs-token-symbol">${symbol}</span><span class="cs-token-mint cs-mono">${mintShort}</span></div>`
+
+  // Verdict: worst of top-20 concentration tier and cluster-count tier.
+  const t20 = top20Percentage !== null ? parseFloat(top20Percentage) : null
+  let vClass = 'cs-verdict--neutral'
+  let vLabel = 'Scan'
+  if (t20 !== null && !Number.isNaN(t20)) {
+    let tier = t20 >= 50 ? 2 : t20 >= 30 ? 1 : 0
+    if (clusterCount !== null) {
+      if (clusterCount >= 3) tier = 2
+      else if (clusterCount >= 1 && tier === 0) tier = 1
+    }
+    if (tier === 2) { vClass = 'cs-verdict--danger'; vLabel = 'Cabal Risk' }
+    else if (tier === 1) { vClass = 'cs-verdict--warn'; vLabel = 'Caution' }
+    else { vClass = 'cs-verdict--safe'; vLabel = 'Clean' }
+  }
+  ui.verdict.className = `cs-verdict ${vClass}`
+  ui.verdict.innerHTML = `<span class="cs-verdict-dot"></span>${vLabel}`
+
+  // KPI chips
+  const chip = (label: string, value: string, cls = '') =>
+    `<div class="cs-kpi"><span class="cs-kpi-label">${label}</span><span class="cs-kpi-value ${cls}">${value}</span></div>`
+
+  const t20Cls = t20 === null || Number.isNaN(t20) ? '' : t20 >= 50 ? 'is-danger' : t20 >= 30 ? 'is-warn' : 'is-safe'
+  const chips: string[] = []
+  chips.push(chip('Top 20', `<span class="cs-mono">${top20Percentage ?? '…'}</span>`, t20Cls))
+
   if (currentMarketCap !== null) {
-    const isBonded = currentMarketCap >= 60000
-    const bondedIcon = isBonded ? '✅' : '❌'
-    const bondedClass = isBonded ? 'cs-summary-bonded-yes' : 'cs-summary-bonded-no'
-    bondedDisplay = `<span class="${bondedClass}">${bondedIcon}</span>`
+    const bonded = currentMarketCap >= 60000
+    chips.push(chip('Bonded', bonded ? 'Yes' : 'No', bonded ? 'is-safe' : 'is-warn'))
+  } else {
+    chips.push(chip('Bonded', '…'))
   }
 
-  // Similar Tokens Logic
-  const similarCount = similarTokensData !== null ? similarTokensData.length : '...'
+  const clCls = clusterCount === null ? '' : clusterCount >= 3 ? 'is-danger' : clusterCount >= 1 ? 'is-warn' : 'is-safe'
+  chips.push(chip('Clusters', `<span class="cs-mono">${clusterCount ?? '…'}</span>`, clCls))
+  chips.push(chip('Holders', `<span class="cs-mono">${uniqueHolders !== null ? uniqueHolders.toLocaleString() : '…'}</span>`, 'is-muted'))
 
-  // Top 20 Logic
-  const top20Display = top20Percentage !== null ? top20Percentage : '...'
-
-  // OG Token Logic
-  let ogButton = '<span style="color: #64748b;">...</span>'
   if (similarTokensData !== null) {
-    ogButton = oldestBondedToken
-      ? `<a href="${oldestBondedToken.axiomLink}" class="cs-summary-og-btn" target="_self">Go to OG</a>`
-      : '<span style="color: #64748b;">N/A</span>'
+    chips.push(chip('Similar', `<span class="cs-mono">${similarTokensData.length}</span>`, similarTokensData.length > 0 ? 'is-warn' : 'is-muted'))
+    if (oldestBondedToken) {
+      chips.push(chip('OG token', `<a href="${oldestBondedToken.axiomLink}" target="_self" class="cs-kpi-link">Go to OG →</a>`))
+    }
   }
 
-  ui.summary.innerHTML = `
-    <div class="cs-summary-item">
-      <span class="cs-summary-label">Bonded:</span>
-      ${bondedDisplay}
-    </div>
-    <div class="cs-summary-item">
-      <span class="cs-summary-label">Similar Tokens:</span>
-      <span class="cs-summary-value">${similarCount}</span>
-    </div>
-    <div class="cs-summary-item">
-      <span class="cs-summary-label">Top 20 Hold:</span>
-      <span class="cs-summary-value">${top20Display}</span>
-    </div>
-    <div class="cs-summary-item">
-      <span class="cs-summary-label">OG Token:</span>
-      ${ogButton}
-    </div>
-  `
-  ui.summary.style.display = 'grid'
+  ui.summary.innerHTML = chips.join('')
 }
 
 async function fetchAndRenderSimilarTokens(ui: any) {
@@ -90,7 +107,7 @@ async function fetchAndRenderSimilarTokens(ui: any) {
     oldestBondedToken = bondedTokens.length > 0 ? bondedTokens[0] : null
 
     renderSimilarTokens(ui, similarTokensData)
-    renderSummary(ui)
+    renderTop(ui)
   } catch (err) {
     console.error('[Cluster Scanner] Similar tokens error:', err)
     ui.similarContent.innerHTML = `<div class="cs-error">${err instanceof Error ? err.message : 'Failed to fetch similar tokens'}</div>`
@@ -129,9 +146,12 @@ async function runScan(ui: any, deepScan = false) {
   currentMarketCap = null
   oldestBondedToken = null
   top20Percentage = null
+  currentMint = addressFromUrl
+  clusterCount = null
+  uniqueHolders = null
 
-  // Render initial summary (loading state)
-  renderSummary(ui)
+  // Render initial header/KPIs (loading state)
+  renderTop(ui)
 
   // Resolve pair to mint if possible using DexScreener
   let mintAddress = addressFromUrl
@@ -148,9 +168,10 @@ async function runScan(ui: any, deepScan = false) {
         imageUrl: pair.info?.imageUrl
       }
       currentMarketCap = pair.marketCap || 0
+      currentMint = mintAddress
       console.log('[Cluster Scanner] Resolved Mint:', mintAddress)
       console.log('[Cluster Scanner] Token metadata:', tokenMetadata)
-      renderSummary(ui)
+      renderTop(ui)
     }
   } catch (metaErr) {
     console.warn('[Cluster Scanner] Failed to fetch/resolve token metadata:', metaErr)
@@ -172,36 +193,12 @@ async function runScan(ui: any, deepScan = false) {
     // Filter out system wallets for concentration stats
     const nonSystemHolders = holders.filter(h => !SYSTEM_WALLETS.has(h.owner))
 
-    const renderStats = (clusterStat?: string) => {
-      // Calculate Top 20 hold excluding system wallets
-      const top20NonSystem = nonSystemHolders.slice(0, 20)
-      const top20Amount = top20NonSystem.reduce((sum, h) => sum + h.humanReadableAmount, 0)
-      top20Percentage = calculatePercentage(top20Amount, totalSupply)
-
-      renderSummary(ui)
-
-      ui.stats.innerHTML = `
-        <div class="cs-stats-row">
-          <span class="cs-stats-label">Total Supply:</span>
-          <span class="cs-stats-value">${formatNumber(totalSupply, 0)}</span>
-        </div>
-        <div class="cs-stats-row">
-          <span class="cs-stats-label">Unique Holders:</span>
-          <span class="cs-stats-value">${scanData.totalUniqueHolders.toLocaleString()}</span>
-        </div>
-        ${clusterStat || ''}
-        <div class="cs-stats-row" title="Excludes LPs and Bonding Curves">
-          <span class="cs-stats-label">Top 20 Hold:</span>
-          <span class="cs-stats-value">${top20Percentage}</span>
-        </div>
-        <div class="cs-stats-row">
-          <span class="cs-stats-label">Decimals:</span>
-          <span class="cs-stats-value">${scanData.metadata.decimals}</span>
-        </div>
-      `
-    }
-
-    renderStats()
+    // Top-20 concentration (excludes LPs / bonding curves) drives the verdict + KPIs.
+    const top20NonSystem = nonSystemHolders.slice(0, 20)
+    const top20Amount = top20NonSystem.reduce((sum, h) => sum + h.humanReadableAmount, 0)
+    top20Percentage = calculatePercentage(top20Amount, totalSupply)
+    uniqueHolders = scanData.totalUniqueHolders
+    renderTop(ui)
 
     const walletAddresses = holders.map((h: TokenHolder) => h.owner)
 
@@ -257,6 +254,8 @@ async function runScan(ui: any, deepScan = false) {
     console.log('[Cluster Scanner] Raw clusters:', clusters)
 
     const relevantClusters = processClusters(clusters, amountMap)
+    clusterCount = relevantClusters.length
+    renderTop(ui)
 
     renderResults(ui, relevantClusters, amountMap, totalSupply)
 
@@ -314,20 +313,54 @@ function processClusters(clusters: ClusterWithMembers[], amountMap: Map<string, 
 
   const dragSystem = makeDraggable(ui.container, ui.toggleBtn)
 
-  ui.toggleBtn.addEventListener('click', () => {
-    if (dragSystem.wasDragging()) return
-
+  function toggleWidget() {
     const isClosed = ui.panel.style.display === 'none' || ui.panel.style.display === ''
-
     if (isClosed) {
       ui.panel.style.display = 'flex'
-      if (ui.content.innerText.includes('Click Refresh')) {
+      if (ui.content.innerText.includes('Click to scan')) {
         runScan(ui, false)
       }
     } else {
       ui.panel.style.display = 'none'
     }
+  }
+
+  ui.toggleBtn.addEventListener('click', () => {
+    if (dragSystem.wasDragging()) return
+    toggleWidget()
   })
+
+  // Keyboard shortcut: hold Space + press 1 to open/close the widget.
+  // Held keys are tracked so the chord works in either press order, auto-repeat
+  // is ignored, and keys are never hijacked while typing in a field.
+  const heldKeys = new Set<string>()
+
+  const isEditable = (el: EventTarget | null): boolean => {
+    const node = el as HTMLElement | null
+    if (!node || !node.tagName) return false
+    const tag = node.tagName
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || node.isContentEditable
+  }
+
+  window.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.repeat || isEditable(e.target)) return
+
+    heldKeys.add(e.code)
+
+    const spaceHeld = heldKeys.has('Space')
+    const oneHeld = heldKeys.has('Digit1') || heldKeys.has('Numpad1')
+    if (spaceHeld && oneHeld) {
+      e.preventDefault() // stop Space from scrolling / "1" from typing
+      toggleWidget()
+    }
+  })
+
+  window.addEventListener('keyup', (e: KeyboardEvent) => {
+    heldKeys.delete(e.code)
+  })
+
+  // Clear held state if focus leaves the page mid-chord (avoids a stuck key).
+  window.addEventListener('blur', () => heldKeys.clear())
 
   ui.closeBtn.addEventListener('click', () => {
     ui.panel.style.display = 'none'
@@ -351,8 +384,8 @@ function processClusters(clusters: ClusterWithMembers[], amountMap: Map<string, 
     if (tokenMetadata && (similarTokensData === null || similarTokensData.length === 0)) {
       fetchAndRenderSimilarTokens(ui)
     } else if (similarTokensData !== null && similarTokensData.length > 0) {
-      // Re-render summary in case it was hidden
-      renderSummary(ui)
+      // Re-render header/KPIs in case they were stale
+      renderTop(ui)
     }
   })
 
@@ -361,17 +394,18 @@ function processClusters(clusters: ClusterWithMembers[], amountMap: Map<string, 
     if (location.href !== lastUrl) {
       lastUrl = location.href
       console.log('[Cluster Scanner] URL changed, resetting...')
-      ui.stats.innerHTML = ''
 
-      // Reset similar tokens data
+      // Reset scan state
       tokenMetadata = null
       similarTokensData = null
       currentMarketCap = null
       oldestBondedToken = null
       top20Percentage = null
-      ui.similarContent.innerHTML = `<div class="cs-loading">Click Refresh to scan</div>`
-      ui.summary.style.display = 'none'
-      ui.summary.innerHTML = ''
+      currentMint = null
+      clusterCount = null
+      uniqueHolders = null
+      ui.similarContent.innerHTML = `<div class="cs-loading">Scan a token first</div>`
+      renderTop(ui)
 
       // Switch back to clusters tab
       switchTab(ui, 'clusters')

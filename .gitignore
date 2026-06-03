@@ -30,3 +30,6 @@ dist-ssr
 # Builds
 dist
 release/
+
+# AIDesigner artifacts (local design run history)
+.aidesigner/
