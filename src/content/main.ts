@@ -505,6 +505,13 @@ function processClusters(clusters: ClusterWithMembers[], amountMap: Map<string, 
 
   const dragSystem = makeDraggable(ui.container, ui.toggleBtn)
 
+  // Burn guardrail: debounce navigation scans. Browsing fast cancels pending
+  // scans, and we never scan while the panel is closed — so Helius credits are
+  // only spent on tokens you actually dwell on with the widget open.
+  let scanDebounce: ReturnType<typeof setTimeout> | null = null
+  const clearScanDebounce = () => { if (scanDebounce !== null) { clearTimeout(scanDebounce); scanDebounce = null } }
+  const panelIsOpen = () => ui.panel.style.display === 'flex'
+
   // Auto deep-scan toggle (persisted): when on, navigating to a token auto-runs
   // the deep scan instead of a normal scan, for faster hands-off research.
   const updateAutoBtn = () => ui.autoBtn.classList.toggle('is-on', autoDeep)
@@ -520,14 +527,16 @@ function processClusters(clusters: ClusterWithMembers[], amountMap: Map<string, 
     updateAutoBtn()
     try { chrome.storage?.local.set({ psc_auto_deep: autoDeep }) } catch { /* ignore */ }
     // Turning it on while viewing a token kicks off a deep scan right away.
-    if (autoDeep && extractTokenFromUrl()) runScan(ui, true)
+    if (autoDeep && panelIsOpen() && extractTokenFromUrl()) { clearScanDebounce(); runScan(ui, true) }
   })
 
   function toggleWidget() {
     const isClosed = ui.panel.style.display === 'none' || ui.panel.style.display === ''
     if (isClosed) {
       ui.panel.style.display = 'flex'
+      // Opening is an explicit action — scan the current token now (no debounce).
       if (ui.content.innerText.includes('Click to scan')) {
+        clearScanDebounce()
         runScan(ui, autoDeep)
       }
     } else {
@@ -635,12 +644,25 @@ function processClusters(clusters: ClusterWithMembers[], amountMap: Map<string, 
       // Switch back to clusters tab
       switchTab(ui, 'clusters')
 
+      // Cancel any pending scan from the previous token (fast browsing = no scan).
+      clearScanDebounce()
+
       const address = extractTokenFromUrl()
-      if (address) {
-        // Auto-scan the new token — deep scan if the user enabled Auto mode.
-        runScan(ui, autoDeep)
-      } else {
+      if (!address) {
         ui.content.innerHTML = `<div class="cs-loading">Navigate to a Token Page to scan.</div>`
+      } else if (!panelIsOpen()) {
+        // Don't spend Helius while the widget is closed — scan when it's opened.
+        ui.content.innerHTML = `<div class="cs-loading">Click to scan this token</div>`
+      } else {
+        // Debounce: only scan after you dwell on the token. Auto mode (deep +
+        // insiders + dev-check) waits longer so scrolled-past tokens cost nothing.
+        const delay = autoDeep ? 2500 : 350
+        ui.content.innerHTML = `<div class="cs-loading">${autoDeep ? 'Auto research — hold on this token…' : 'Loading…'}</div>`
+        scanDebounce = setTimeout(() => {
+          scanDebounce = null
+          if (panelIsOpen()) runScan(ui, autoDeep)
+          else ui.content.innerHTML = `<div class="cs-loading">Click to scan this token</div>`
+        }, delay)
       }
     }
   }).observe(document.body, { childList: true, subtree: true })
