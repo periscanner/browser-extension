@@ -1,4 +1,5 @@
-import { fetchScanResults, fetchClustersByWallets, submitIngestJob, pollIngestJob, fetchSimilarTokens } from './services/api'
+import { fetchScanResults, fetchClustersByWallets, submitIngestJob, pollIngestJob, fetchSimilarTokens, fetchDevCheck } from './services/api'
+import type { DevCheckResult } from './services/api'
 import { extractTokenFromUrl, extractMintFromDom } from './services/scanner'
 
 import { calculatePercentage } from './utils/format'
@@ -25,6 +26,31 @@ let top20Percentage: string | null = null
 let currentMint: string | null = null
 let clusterCount: number | null = null
 let uniqueHolders: number | null = null
+let currentSupply: number | null = null
+let devCheckData: DevCheckResult | null = null
+let clusterTop: { pct: number; count: number } | null = null
+
+// Dev moved >= this % of supply to personal (non-market) wallets → RUG ALERT.
+const RUG_TRANSFER_PCT = 1
+
+// % of supply the dev moved to personal (non-market) wallets, 0 if unknown.
+function devMovedPct(): number {
+  if (!devCheckData || devCheckData.status !== 'ok' || !currentSupply) return 0
+  return (devCheckData.transferredToWallets / currentSupply) * 100
+}
+
+// Prominent RUG ALERT banner at the top when the dev offloaded supply to wallets.
+function renderAlert(ui: any) {
+  const moved = devMovedPct()
+  if (devCheckData?.status === 'ok' && moved >= RUG_TRANSFER_PCT && devCheckData.devWallet) {
+    const n = devCheckData.recipients.length || 1
+    ui.alert.className = 'cs-alert cs-alert--danger'
+    ui.alert.innerHTML = `<span class="cs-alert-icon">!</span><span><b>RUG RISK</b> — dev moved ${moved.toFixed(1)}% of supply to ${n} wallet${n === 1 ? '' : 's'}</span>`
+  } else {
+    ui.alert.className = 'cs-alert'
+    ui.alert.innerHTML = ''
+  }
+}
 
 // Renders the header (token identity + derived risk verdict) and the KPI chip
 // strip. Safe to call at any scan stage — missing values render as placeholders.
@@ -43,7 +69,10 @@ function renderTop(ui: any) {
   const t20 = top20Percentage !== null ? parseFloat(top20Percentage) : null
   let vClass = 'cs-verdict--neutral'
   let vLabel = 'Scan'
-  if (t20 !== null && !Number.isNaN(t20)) {
+  if (devMovedPct() >= RUG_TRANSFER_PCT) {
+    // Dev offloading to wallets is the strongest red flag — it overrides.
+    vClass = 'cs-verdict--danger'; vLabel = 'Rug Risk'
+  } else if (t20 !== null && !Number.isNaN(t20)) {
     let tier = t20 >= 50 ? 2 : t20 >= 30 ? 1 : 0
     if (clusterCount !== null) {
       if (clusterCount >= 3) tier = 2
@@ -64,6 +93,19 @@ function renderTop(ui: any) {
   const chips: string[] = []
   chips.push(chip('Top 20', `<span class="cs-mono">${top20Percentage ?? '…'}</span>`, t20Cls))
 
+  // Dev status — moved / sold / holds.
+  if (devCheckData?.status === 'ok') {
+    const moved = devMovedPct()
+    const balPct = currentSupply ? (devCheckData.devBalance / currentSupply) * 100 : 0
+    const soldPct = currentSupply ? (devCheckData.soldToMarket / currentSupply) * 100 : 0
+    let v: string, cls: string
+    if (moved >= RUG_TRANSFER_PCT) { v = `moved ${moved.toFixed(1)}%`; cls = 'is-danger' }
+    else if (soldPct >= 1) { v = 'sold'; cls = 'is-warn' }
+    else if (balPct >= 0.1) { v = `holds ${balPct.toFixed(1)}%`; cls = 'is-muted' }
+    else { v = '~0'; cls = 'is-warn' }
+    chips.push(chip('Dev', `<span class="cs-mono">${v}</span>`, cls))
+  }
+
   if (currentMarketCap !== null) {
     const bonded = currentMarketCap >= 60000
     chips.push(chip('Bonded', bonded ? 'Yes' : 'No', bonded ? 'is-safe' : 'is-warn'))
@@ -73,6 +115,13 @@ function renderTop(ui: any) {
 
   const clCls = clusterCount === null ? '' : clusterCount >= 3 ? 'is-danger' : clusterCount >= 1 ? 'is-warn' : 'is-safe'
   chips.push(chip('Clusters', `<span class="cs-mono">${clusterCount ?? '…'}</span>`, clCls))
+
+  // Biggest coordinated holder (split-supply detection).
+  if (clusterTop) {
+    const tcCls = clusterTop.pct >= 20 ? 'is-danger' : clusterTop.pct >= 8 ? 'is-warn' : 'is-muted'
+    chips.push(chip('Top cluster', `<span class="cs-mono">${clusterTop.pct.toFixed(1)}% · ${clusterTop.count}w</span>`, tcCls))
+  }
+
   chips.push(chip('Holders', `<span class="cs-mono">${uniqueHolders !== null ? uniqueHolders.toLocaleString() : '…'}</span>`, 'is-muted'))
 
   if (similarTokensData !== null) {
@@ -149,9 +198,13 @@ async function runScan(ui: any, deepScan = false) {
   currentMint = addressFromUrl
   clusterCount = null
   uniqueHolders = null
+  currentSupply = null
+  devCheckData = null
+  clusterTop = null
 
-  // Render initial header/KPIs (loading state)
+  // Render initial header/KPIs (loading state) + clear any prior RUG banner
   renderTop(ui)
+  renderAlert(ui)
 
   // Resolve the URL address to the canonical token MINT (+ metadata). The
   // /meme/<id> path can be the mint OR an AMM pool id, and brand-new tokens
@@ -200,6 +253,10 @@ async function runScan(ui: any, deepScan = false) {
     }
   }
 
+  // Kick off the dev/creator rug check in parallel — it runs while we fetch
+  // holders + clusters, so the RUG banner costs no extra wall-time.
+  const devCheckPromise = fetchDevCheck(mintAddress).catch(() => null)
+
   try {
     // 1. Fetch Top Holders
     const scanData: ScanResult = await fetchScanResults(mintAddress)
@@ -207,6 +264,7 @@ async function runScan(ui: any, deepScan = false) {
 
     const holders: TokenHolder[] = scanData.holders || []
     const totalSupply = scanData.stats.totalSupply
+    currentSupply = totalSupply
 
     if (holders.length === 0) {
       ui.content.innerHTML = `<div class="cs-empty">No holders found.</div>`
@@ -304,9 +362,19 @@ async function runScan(ui: any, deepScan = false) {
 
     const relevantClusters = processClusters(clusters, amountMap)
     clusterCount = relevantClusters.length
+    // Biggest coordinated holder = largest cluster's combined share (clusters
+    // are sorted by total amount, so [0] is the largest).
+    clusterTop = relevantClusters.length && totalSupply > 0
+      ? { pct: (relevantClusters[0].totalAmount / totalSupply) * 100, count: relevantClusters[0].members.length }
+      : null
     renderTop(ui)
 
     renderResults(ui, relevantClusters, amountMap, totalSupply)
+
+    // Resolve the parallel dev rug check and surface it (banner + verdict + chip).
+    devCheckData = await devCheckPromise
+    renderAlert(ui)
+    renderTop(ui)
 
     // Auto-load similar tokens if on axiom.trade domain
     const isAxiomTrade = window.location.hostname.includes('axiom.trade')
@@ -453,8 +521,12 @@ function processClusters(clusters: ClusterWithMembers[], amountMap: Map<string, 
       currentMint = null
       clusterCount = null
       uniqueHolders = null
+      currentSupply = null
+      devCheckData = null
+      clusterTop = null
       ui.similarContent.innerHTML = `<div class="cs-loading">Scan a token first</div>`
       renderTop(ui)
+      renderAlert(ui)
 
       // Switch back to clusters tab
       switchTab(ui, 'clusters')

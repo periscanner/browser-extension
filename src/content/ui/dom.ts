@@ -35,6 +35,8 @@ export function createWidgetElements() {
         </div>
       </header>
 
+      <div id="cs-alert" class="cs-alert"></div>
+
       <div id="cs-summary" class="cs-kpis"></div>
 
       <div class="cs-tabs">
@@ -65,6 +67,7 @@ export function createWidgetElements() {
     closeBtn: widget.querySelector('#cs-close') as HTMLElement,
     token: widget.querySelector('#cs-token') as HTMLElement,
     verdict: widget.querySelector('#cs-verdict') as HTMLElement,
+    alert: widget.querySelector('#cs-alert') as HTMLElement,
     summary: widget.querySelector('#cs-summary') as HTMLElement,
     content: widget.querySelector('#cs-content') as HTMLElement,
     similarContent: widget.querySelector('#cs-similar-content') as HTMLElement,

@@ -153,6 +153,32 @@ export function createStyles() {
     }
     .cs-close:hover { color: var(--ps-z200); background: var(--ps-bg-2); }
 
+    /* ---- RUG alert banner ---- */
+    .cs-alert {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 12px;
+      flex-shrink: 0;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.3;
+      border-bottom: 1px solid var(--ps-border-soft);
+    }
+    .cs-alert--danger {
+      display: flex;
+      color: #fda4af;
+      background: rgba(244, 63, 94, 0.14);
+      border-bottom-color: rgba(244, 63, 94, 0.28);
+      box-shadow: inset 0 0 24px rgba(244, 63, 94, 0.08);
+    }
+    .cs-alert b { color: #fb7185; font-weight: 700; letter-spacing: 0.02em; }
+    .cs-alert-icon {
+      flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--ps-coral); color: #1a0509; font-size: 12px; font-weight: 800;
+    }
+
     /* ---- KPI strip ---- */
     .cs-kpis {
       display: flex; gap: 0;

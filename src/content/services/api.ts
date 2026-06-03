@@ -102,6 +102,32 @@ export async function pollIngestJob(
   }
 }
 
+// ---- Dev / creator rug check ----
+
+export interface DevCheckResult {
+  devWallet: string | null
+  devBalance: number
+  transferredToWallets: number
+  soldToMarket: number
+  recipients: { wallet: string; amount: number }[]
+  status: 'ok' | 'unknown'
+}
+
+// Best-effort: returns null on any failure so the scan never breaks on it.
+export async function fetchDevCheck(mint: string): Promise<DevCheckResult | null> {
+  try {
+    const response = await fetch(`${API_URL}/extension/dev-check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mint })
+    })
+    if (!response.ok) return null
+    return await response.json()
+  } catch {
+    return null
+  }
+}
+
 export async function fetchSimilarTokens(name: string, symbol: string, imageUrl?: string): Promise<SimilarTokensResponse> {
   const response = await fetch(`${API_URL}/extension/similar-tokens`, {
     method: 'POST',
