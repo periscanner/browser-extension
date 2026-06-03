@@ -29,6 +29,16 @@ let currentSupply: number | null = null
 let devCheckData: DevCheckResult | null = null
 let currentHolderOwners: string[] = []
 let insidersData: InsiderResult | null = null
+let similarRequested = false
+
+// Fire the similar-tokens lookup once per scan, as soon as metadata is known
+// (from Axiom state instantly, or DexScreener) — so the Created chip + Similar
+// tab populate early, in parallel with the cluster/deep-scan work.
+function requestSimilar(ui: any) {
+  if (!tokenMetadata || similarRequested) return
+  similarRequested = true
+  void fetchAndRenderSimilarTokens(ui, true)
+}
 
 // Dev moved >= this % of supply to personal (non-market) wallets → RUG ALERT.
 const RUG_TRANSFER_PCT = 1
@@ -139,13 +149,14 @@ function renderTop(ui: any) {
   ui.summary.innerHTML = chips.join('')
 }
 
-async function fetchAndRenderSimilarTokens(ui: any) {
+async function fetchAndRenderSimilarTokens(ui: any, background = false) {
   if (!tokenMetadata) {
-    ui.similarContent.innerHTML = `<div class="cs-error">No token metadata available. Scan a token first.</div>`
+    if (!background) ui.similarContent.innerHTML = `<div class="cs-error">No token metadata available. Scan a token first.</div>`
     return
   }
 
-  ui.similarContent.innerHTML = `<div class="cs-loading">Searching for similar tokens...</div>`
+  const mintAtCall = currentMint
+  if (!background) ui.similarContent.innerHTML = `<div class="cs-loading">Searching for similar tokens...</div>`
 
   try {
     const response = await fetchSimilarTokens(
@@ -153,6 +164,7 @@ async function fetchAndRenderSimilarTokens(ui: any) {
       tokenMetadata.symbol,
       tokenMetadata.imageUrl
     )
+    if (currentMint !== mintAtCall) return // navigated away mid-fetch
 
     similarTokensData = response.tokens
 
@@ -239,6 +251,7 @@ async function runScan(ui: any, deepScan = false) {
   devCheckData = null
   currentHolderOwners = []
   insidersData = null
+  similarRequested = false
 
   // Render initial header/KPIs (loading state) + clear any prior RUG banner
   renderTop(ui)
@@ -275,6 +288,7 @@ async function runScan(ui: any, deepScan = false) {
         tokenMetadata = { name: pair.baseToken.name, symbol: pair.baseToken.symbol, imageUrl: pair.info?.imageUrl }
         currentMarketCap = pair.marketCap || 0
         renderTop(ui)
+        requestSimilar(ui) // covers tokens not in Axiom state
       }
     } catch { /* metadata is best-effort */ }
   })()
@@ -337,6 +351,10 @@ async function runScan(ui: any, deepScan = false) {
     const walletAddresses = holders.map((h: TokenHolder) => h.owner)
     // Top holders for the (lazy-loaded) Insider Clusters tab.
     currentHolderOwners = nonSystemHolders.map((h: TokenHolder) => h.owner)
+
+    // Kick off similar tokens now (fast path: Axiom-state metadata) so the
+    // Created chip + Similar tab don't wait for the deep scan to finish.
+    requestSimilar(ui)
 
     const amountMap = new Map<string, number>(
       holders.map((h: TokenHolder) => [h.owner, h.humanReadableAmount])
@@ -430,12 +448,9 @@ async function runScan(ui: any, deepScan = false) {
     renderAlert(ui)
     renderTop(ui)
 
-    // Auto-load similar tokens if on axiom.trade domain
-    const isAxiomTrade = window.location.hostname.includes('axiom.trade')
-    if (isAxiomTrade && tokenMetadata) {
-      console.log('[Cluster Scanner] Auto-loading similar tokens on axiom.trade')
-      await fetchAndRenderSimilarTokens(ui)
-    }
+    // Similar tokens are already loading (requestSimilar fired early); ensure a
+    // fetch even if metadata only just arrived.
+    requestSimilar(ui)
 
     // In Auto mode, also pre-fetch insiders in the background so the Insider %
     // chip + tab are ready without the user opening the Insiders tab.
@@ -583,12 +598,13 @@ function processClusters(clusters: ClusterWithMembers[], amountMap: Map<string, 
 
   ui.tabSimilar.addEventListener('click', () => {
     switchTab(ui, 'similar')
-    // Auto-fetch similar tokens when switching to that tab if we have metadata
-    if (tokenMetadata && (similarTokensData === null || similarTokensData.length === 0)) {
-      fetchAndRenderSimilarTokens(ui)
-    } else if (similarTokensData !== null && similarTokensData.length > 0) {
-      // Re-render header/KPIs in case they were stale
+    if (similarTokensData !== null) {
+      renderSimilarTokens(ui, similarTokensData)
       renderTop(ui)
+    } else if (tokenMetadata) {
+      // Not loaded yet (or in flight) — show a foreground load.
+      if (!similarRequested) fetchAndRenderSimilarTokens(ui)
+      else ui.similarContent.innerHTML = `<div class="cs-loading">Searching for similar tokens…</div>`
     }
   })
 
@@ -610,6 +626,7 @@ function processClusters(clusters: ClusterWithMembers[], amountMap: Map<string, 
       devCheckData = null
       currentHolderOwners = []
       insidersData = null
+      similarRequested = false
       ui.similarContent.innerHTML = `<div class="cs-loading">Scan a token first</div>`
       ui.insiderContent.innerHTML = `<div class="cs-loading">Scan a token first</div>`
       renderTop(ui)
