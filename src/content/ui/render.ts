@@ -1,6 +1,7 @@
 import { formatNumber, calculatePercentage } from '../utils/format'
 import { ClusterMember, SimilarToken } from '../types'
 import type { InsiderCluster } from '../services/api'
+import { WEBAPP_URL } from '../config'
 
 type Severity = 'danger' | 'warn' | 'low'
 
@@ -83,7 +84,7 @@ export function renderResults(
         <div class="cs-cluster-head">
           <div class="cs-cluster-title">
             <span class="cs-cluster-sev" style="background:${SEV_COLOR[sev]}"></span>
-            <a href="https://periscanner.xyz/cluster/${c.cluster_id}" target="_blank" class="cs-cluster-name">${c.cluster_name || 'Unnamed cluster'}</a>
+            <a href="${WEBAPP_URL}/cluster/${c.cluster_id}" target="_blank" class="cs-cluster-name">${c.cluster_name || 'Unnamed cluster'}</a>
             <span class="cs-cluster-count cs-mono">${c.members.length}</span>
           </div>
           <div class="cs-cluster-head-right">
