@@ -13,6 +13,10 @@ const SEV_COLOR: Record<Severity, string> = {
 // Roles that indicate a wallet is a source/controller of coordination.
 const ACCENT_ROLES = new Set(['hub', 'funder', 'funded', 'primary'])
 
+// Cap rendered member rows per cluster card so a mega-cluster (200+ members)
+// doesn't build hundreds of rows. The card stays scannable; the rest are summarized.
+const MEMBER_ROW_CAP = 25
+
 function clusterSeverity(supplyPct: number): Severity {
   if (supplyPct >= 20) return 'danger'
   if (supplyPct >= 8) return 'warn'
@@ -54,13 +58,13 @@ export function renderResults(
 
   const cards = enriched.map((c: any) => {
     const sev = c.sev as Severity
-    const rows = c.members.map((m: ClusterMember) => {
+    const supplyColor = sev === 'danger' ? 'color:#f43f5e' : sev === 'warn' ? 'color:#f59e0b' : 'color:#a1a1aa'
+    const rows = c.members.slice(0, MEMBER_ROW_CAP).map((m: ClusterMember) => {
       const amount = amountMap.get(m.wallet_address) || 0
       const role = (m.role || '').toLowerCase()
       const roleClass = ACCENT_ROLES.has(role)
         ? (sev === 'warn' ? 'cs-row-role--warn' : 'cs-row-role--accent')
         : ''
-      const supplyColor = sev === 'danger' ? 'color:#f43f5e' : sev === 'warn' ? 'color:#f59e0b' : 'color:#a1a1aa'
       return `
         <div class="cs-row">
           <span class="cs-row-addr cs-mono" data-full-address="${m.wallet_address}" title="Click to copy">${m.wallet_address.slice(0, 4)}…${m.wallet_address.slice(-3)}</span>
@@ -70,6 +74,9 @@ export function renderResults(
         </div>
       `
     }).join('')
+    const moreRow = c.members.length > MEMBER_ROW_CAP
+      ? `<div class="cs-row-more">+${c.members.length - MEMBER_ROW_CAP} more holders in this cluster</div>`
+      : ''
 
     return `
       <div class="cs-cluster cs-cluster--${sev}">
@@ -86,7 +93,7 @@ export function renderResults(
         </div>
         <div class="cs-cluster-body">
           <div class="cs-thead"><span>Wallet</span><span>Role</span><span>Amount</span><span>Supply</span></div>
-          ${rows}
+          ${rows}${moreRow}
         </div>
       </div>
     `
@@ -164,7 +171,7 @@ export function renderInsiders(ui: any, clusters: InsiderCluster[], totalSupply:
     const color = INSIDER_SEV_COLOR[sev]
     const source = c.members.find((m) => m.role !== 'insider') || c.members[0]
 
-    const rows = c.members.map((m) => {
+    const rows = c.members.slice(0, MEMBER_ROW_CAP).map((m) => {
       const amt = m.role === 'source' ? m.sent : m.received
       const roleCls = m.role === 'source' ? 'cs-row-role--accent' : m.role === 'relay' ? 'cs-row-role--warn' : ''
       return `
@@ -175,6 +182,9 @@ export function renderInsiders(ui: any, clusters: InsiderCluster[], totalSupply:
           <span class="cs-row-supply cs-mono" style="color:${color}">${calculatePercentage(amt, totalSupply)}</span>
         </div>`
     }).join('')
+    const moreRow = c.members.length > MEMBER_ROW_CAP
+      ? `<div class="cs-row-more">+${c.members.length - MEMBER_ROW_CAP} more wallets in this group</div>`
+      : ''
 
     return `
       <div class="cs-cluster cs-cluster--${sev}">
@@ -191,7 +201,7 @@ export function renderInsiders(ui: any, clusters: InsiderCluster[], totalSupply:
         </div>
         <div class="cs-cluster-body">
           <div class="cs-thead"><span>Wallet</span><span>Role</span><span>Amount</span><span>Supply</span></div>
-          ${rows}
+          ${rows}${moreRow}
         </div>
       </div>`
   }).join('')

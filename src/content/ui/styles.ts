@@ -321,6 +321,10 @@ export function createStyles() {
     .cs-row-role--warn   { background: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.2); color: var(--ps-amber); }
     .cs-row-amount { font-size: 10px; color: var(--ps-z300); text-align: right; }
     .cs-row-supply { font-size: 10px; text-align: right; }
+    .cs-row-more {
+      padding: 7px 12px; font-size: 10px; color: var(--ps-z500); font-style: italic;
+      text-align: center; background: rgba(9, 9, 11, 0.2);
+    }
 
     /* ---- Insider tab control bar ---- */
     .cs-insider-bar { display: flex; justify-content: flex-end; margin-bottom: 10px; }
