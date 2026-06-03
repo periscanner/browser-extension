@@ -29,6 +29,6 @@ export default defineManifest({
   ],
   // ADDED: Crucial for allowing fetch calls to your API
   host_permissions: [
-    'https://fibjnghzdogyhjzubokf.supabase.co/*'
+    'https://bkewrxrsckiwxdyunbfl.supabase.co/*'
   ]
 })

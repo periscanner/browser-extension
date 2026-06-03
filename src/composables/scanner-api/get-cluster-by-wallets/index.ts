@@ -13,7 +13,7 @@ export function useClustersByWallets() {
     error.value = null;
 
     try {
-      const response = await fetch('https://fibjnghzdogyhjzubokf.supabase.co/functions/v1/scanner-api/get-cluster-by-wallets', {
+      const response = await fetch('https://bkewrxrsckiwxdyunbfl.supabase.co/functions/v1/scanner-api/get-cluster-by-wallets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ wallets }),
