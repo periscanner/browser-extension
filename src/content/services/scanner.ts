@@ -1,5 +1,38 @@
 const B58 = '[1-9A-HJ-NP-Za-km-z]{32,44}'
 
+export interface AxiomToken {
+  mint: string
+  name?: string
+  symbol?: string
+  image?: string
+}
+
+/**
+ * Resolve the real mint (+ metadata) instantly from Axiom's own app state.
+ * Axiom keeps a `recentTickerSol` localStorage array of viewed tokens, each
+ * pairing the URL's pool id (`pairAddress`) with the mint (`tokenAddress`).
+ * Matching by the URL's pool id makes this synchronous and never stale — no
+ * iframe wait, no DexScreener, no "could not find account" on token entry.
+ */
+export function tokenFromAxiomState(poolId: string): AxiomToken | null {
+  try {
+    const raw = localStorage.getItem('recentTickerSol')
+    if (!raw) return null
+    const list = JSON.parse(raw)
+    if (!Array.isArray(list)) return null
+    const hit = list.find((e: any) => e && e.pairAddress === poolId && e.tokenAddress)
+    if (!hit) return null
+    return {
+      mint: hit.tokenAddress,
+      name: hit.tokenName,
+      symbol: hit.tokenTicker,
+      image: hit.tokenImage,
+    }
+  } catch {
+    return null
+  }
+}
+
 /**
  * Read the real token MINT from the page DOM. On axiom.trade the URL path holds
  * an AMM pool id (e.g. /meme/<pool>), NOT the mint — so when DexScreener can't

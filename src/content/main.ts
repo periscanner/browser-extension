@@ -1,6 +1,6 @@
 import { fetchScanResults, fetchClustersByWallets, submitIngestJob, pollIngestJob, fetchSimilarTokens, fetchDevCheck, fetchInsiders } from './services/api'
 import type { DevCheckResult, InsiderResult } from './services/api'
-import { extractTokenFromUrl, extractMintFromDom } from './services/scanner'
+import { extractTokenFromUrl, extractMintFromDom, tokenFromAxiomState } from './services/scanner'
 
 import { calculatePercentage } from './utils/format'
 import { makeDraggable } from './utils/drag'
@@ -225,16 +225,22 @@ async function runScan(ui: any, deepScan = false) {
   renderAlert(ui)
   ui.insiderContent.innerHTML = `<div class="cs-loading">Open this tab to scan insider transfers</div>`
 
-  // --- Start the slow work immediately; metadata resolves in parallel --------
-  // The worker's scan endpoint resolves the /meme/<id> pool address to the
-  // canonical mint server-side (one round trip) and returns `resolvedMint`, so
-  // we DON'T block the holder scan on client-side DexScreener resolution. The
-  // scan, the DexScreener metadata fetch, and (after the scan) the dev check all
-  // run concurrently instead of in a long sequential chain.
-  currentMint = addressFromUrl
+  // --- Resolve the mint instantly from Axiom state; start the scan ASAP -------
+  // Axiom's `recentTickerSol` localStorage maps the URL pool id → the real mint
+  // (+ name/ticker/image), so we get the canonical mint synchronously with zero
+  // network and zero staleness. If it's not in state yet, fall back to the pool
+  // id (the worker resolves it). The scan + DexScreener metadata + dev check all
+  // run concurrently rather than in a sequential chain.
+  let mintAddress = addressFromUrl
+  const fromState = tokenFromAxiomState(addressFromUrl)
+  if (fromState) {
+    mintAddress = fromState.mint
+    tokenMetadata = { name: fromState.name || '', symbol: fromState.symbol || '', imageUrl: fromState.image }
+  }
+  currentMint = mintAddress
   renderTop(ui)
 
-  const scanPromise = fetchScanResults(addressFromUrl)
+  const scanPromise = fetchScanResults(mintAddress)
 
   // DexScreener metadata (name / symbol / market cap — display only): fire both
   // lookups at once and update the header when they land. Never blocks the scan.
@@ -253,22 +259,21 @@ async function runScan(ui: any, deepScan = false) {
     } catch { /* metadata is best-effort */ }
   })()
 
-  let mintAddress = addressFromUrl
   try {
     // 1. Fetch Top Holders (the worker resolves + returns the canonical mint).
     let scanData: ScanResult | null = await scanPromise.catch(() => null)
 
-    // Fresh tokens: the worker can't resolve the /meme/<pool> id yet (not on
-    // DexScreener), and right after navigation Axiom may not have rendered the
-    // mint into the page. Retry with the page mint, backing off while the page
-    // finishes loading — this is what stops the "could not find account" RPC
-    // error on token entry. Bail if a newer navigation superseded us.
+    // Fresh tokens: if state didn't have the mint yet and the worker couldn't
+    // resolve the pool id, retry — re-reading Axiom state (which populates fast)
+    // then the page DOM, backing off while the page finishes loading. This is
+    // what stops the "could not find account" RPC error on token entry. Bail if
+    // a newer navigation superseded us.
     if (!scanData || !(scanData.holders || []).length) {
       const delays = [250, 500, 900, 1200]
       for (const d of delays) {
         await new Promise(r => setTimeout(r, d))
         if (scanGen !== myGen) return
-        const domMint = extractMintFromDom()
+        const domMint: string | null = tokenFromAxiomState(addressFromUrl)?.mint ?? extractMintFromDom()
         if (domMint && domMint !== addressFromUrl && domMint !== mintAddress) {
           mintAddress = domMint
           const retry = await fetchScanResults(domMint).catch(() => null)
