@@ -244,7 +244,9 @@ async function runScan(ui: any, deepScan = false) {
       })
 
       const unknownHolders = holders.filter(h => !knownWallets.has(h.owner) && !SYSTEM_WALLETS.has(h.owner))
-      const candidatesToIngest = unknownHolders.slice(0, 10).map(h => h.owner)
+      // Analyze the 6 largest unknown holders — the ones that matter most for
+      // cabal detection — to keep the deep scan fast.
+      const candidatesToIngest = unknownHolders.slice(0, 6).map(h => h.owner)
 
       if (candidatesToIngest.length > 0) {
         ui.content.innerHTML = `<div class="cs-loading">Queuing analysis of ${candidatesToIngest.length} new top holders...</div>`
@@ -254,14 +256,38 @@ async function runScan(ui: any, deepScan = false) {
           // The heavy Helius/clustering work runs in the background off the request path.
           const ticket = await submitIngestJob(candidatesToIngest, 'normal')
 
+          // Progressive results: refresh the cluster list live as wallets finish
+          // clustering (job progress ≥ 0.8 = clustering phase), so clusters appear
+          // incrementally instead of only after the whole job completes.
+          let refreshing = false
+          let stopped = false
+          const liveRefresh = async (pct: number) => {
+            if (refreshing || stopped) return
+            refreshing = true
+            try {
+              const live = await fetchClustersByWallets(walletAddresses)
+              if (stopped) return
+              const relevant = processClusters(live.clusters || [], amountMap)
+              clusterCount = relevant.length
+              renderTop(ui)
+              renderResults(ui, relevant, amountMap, totalSupply)
+              ui.content.insertAdjacentHTML('afterbegin', `<div class="cs-loading" style="padding:8px 2px">Analyzing top holders… ${pct}%</div>`)
+            } catch { /* keep last good render */ }
+            finally { refreshing = false }
+          }
+
           await pollIngestJob(ticket.jobId, (progress, processed, total) => {
             const pct = Math.round(progress * 100)
             const totalCount = total ?? candidatesToIngest.length
-            ui.content.innerHTML = `<div class="cs-loading">Analyzing top holders… ${processed}/${totalCount} (${pct}%)</div>`
+            if (progress >= 0.8) {
+              void liveRefresh(pct)
+            } else {
+              ui.content.innerHTML = `<div class="cs-loading">Analyzing top holders… ${processed}/${totalCount} (${pct}%)</div>`
+            }
           })
 
-          // Re-fetch clusters to include the newly analyzed ones
-          ui.content.innerHTML = `<div class="cs-loading">Refreshing cluster data...</div>`
+          // Final authoritative refresh once the job completes.
+          stopped = true
           clusterResponse = await fetchClustersByWallets(walletAddresses)
           clusters = clusterResponse.clusters || []
         } catch (ingestErr) {
