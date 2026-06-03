@@ -36,7 +36,8 @@ export function renderResults(
   })
 
   const totalControl = enriched.reduce((s, c) => s + c.pct, 0)
-  const controlClass = totalControl >= 40 ? 'is-danger' : totalControl >= 20 ? 'is-warn' : 'is-safe'
+  // > 5% red, > 3% yellow, otherwise the default text colour.
+  const controlClass = totalControl > 5 ? 'is-danger' : totalControl > 3 ? 'is-warn' : ''
 
   const cabalBar = `
     <div class="cs-cabal">
@@ -75,16 +76,33 @@ export function renderResults(
           <div class="cs-cluster-title">
             <span class="cs-cluster-sev" style="background:${SEV_COLOR[sev]}"></span>
             <a href="https://periscanner.xyz/cluster/${c.cluster_id}" target="_blank" class="cs-cluster-name">${c.cluster_name || 'Unnamed cluster'}</a>
+            <span class="cs-cluster-count cs-mono">${c.members.length}</span>
           </div>
-          <span class="cs-cluster-pct cs-mono" style="color:${SEV_COLOR[sev]}">${c.pct.toFixed(1)}%</span>
+          <div class="cs-cluster-head-right">
+            <span class="cs-cluster-pct cs-mono" style="color:${SEV_COLOR[sev]}">${c.pct.toFixed(1)}%</span>
+            <svg class="cs-cluster-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
         </div>
-        <div class="cs-thead"><span>Wallet</span><span>Role</span><span>Amount</span><span>Supply</span></div>
-        ${rows}
+        <div class="cs-cluster-body">
+          <div class="cs-thead"><span>Wallet</span><span>Role</span><span>Amount</span><span>Supply</span></div>
+          ${rows}
+        </div>
       </div>
     `
   }).join('')
 
   ui.content.innerHTML = cabalBar + cards
+
+  // Accordion: each cluster starts collapsed; clicking the header toggles it.
+  ui.content.querySelectorAll('.cs-cluster-head').forEach((head: HTMLElement) => {
+    head.addEventListener('click', () => {
+      head.parentElement?.classList.toggle('is-open')
+    })
+  })
+  // Clicking the cluster name opens its full page — don't also toggle the card.
+  ui.content.querySelectorAll('.cs-cluster-name').forEach((link: Element) => {
+    link.addEventListener('click', (e: Event) => e.stopPropagation())
+  })
 
   // Click-to-copy wallet addresses.
   const addrs = ui.content.querySelectorAll('.cs-row-addr')

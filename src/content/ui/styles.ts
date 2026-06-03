@@ -239,18 +239,32 @@ export function createStyles() {
     .cs-cluster--low    { border-color: var(--ps-border); background: rgba(24, 24, 27, 0.2); }
 
     .cs-cluster-head {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 8px 12px; border-bottom: 1px solid var(--ps-border-soft);
-      background: rgba(24, 24, 27, 0.3);
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 8px 12px; cursor: pointer; user-select: none;
+      background: rgba(24, 24, 27, 0.3); transition: background 0.12s;
     }
+    .cs-cluster-head:hover { background: rgba(24, 24, 27, 0.55); }
     .cs-cluster-title { display: flex; align-items: center; gap: 7px; min-width: 0; }
     .cs-cluster-sev { width: 7px; height: 7px; border-radius: 2px; flex-shrink: 0; }
     .cs-cluster-name {
       font-size: 12px; font-weight: 500; color: var(--ps-z200);
-      text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px;
+      text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px;
     }
     a.cs-cluster-name:hover { text-decoration: underline; }
+    .cs-cluster-count {
+      font-size: 10px; color: var(--ps-z500); flex-shrink: 0;
+      background: var(--ps-bg-2); border: 1px solid var(--ps-border);
+      border-radius: 999px; padding: 0 6px; line-height: 16px;
+    }
+    .cs-cluster-head-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
     .cs-cluster-pct { font-size: 12px; font-weight: 600; flex-shrink: 0; }
+    .cs-cluster-chevron { width: 13px; height: 13px; color: var(--ps-z500); transition: transform 0.18s; flex-shrink: 0; }
+
+    /* Accordion: collapsed by default, expand on .is-open */
+    .cs-cluster-body { display: none; border-top: 1px solid var(--ps-border-soft); }
+    .cs-cluster.is-open > .cs-cluster-head { background: rgba(24, 24, 27, 0.55); }
+    .cs-cluster.is-open .cs-cluster-body { display: block; }
+    .cs-cluster.is-open .cs-cluster-chevron { transform: rotate(180deg); }
 
     .cs-thead {
       display: grid; grid-template-columns: 64px 1fr 70px 46px;
