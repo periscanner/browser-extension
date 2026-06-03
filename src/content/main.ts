@@ -171,15 +171,18 @@ function switchTab(ui: any, tab: 'clusters' | 'insiders' | 'similar') {
 }
 
 // Lazy-load the Insider Clusters tab (token-transfer graph among top holders).
-async function loadInsiders(ui: any) {
+// deep = follow the transfer graph multi-hop (A→B→C) instead of just direct.
+async function loadInsiders(ui: any, deep = false) {
   if (!currentMint || currentHolderOwners.length === 0) {
     ui.insiderContent.innerHTML = `<div class="cs-empty">Scan a token first.</div>`
     return
   }
-  ui.insiderContent.innerHTML = `<div class="cs-loading">Scanning insider transfers…</div>`
+  ui.insiderContent.innerHTML = `<div class="cs-loading">${deep ? 'Deep scanning insider transfers (multi-hop)…' : 'Scanning insider transfers…'}</div>`
   try {
-    insidersData = await fetchInsiders(currentMint, currentHolderOwners)
-    renderInsiders(ui, insidersData.clusters, currentSupply || 0)
+    insidersData = await fetchInsiders(currentMint, currentHolderOwners, deep)
+    renderInsiders(ui, insidersData.clusters, currentSupply || 0, deep)
+    // Wire the "Multi-hop deep scan" button (present only in shallow mode).
+    ui.insiderContent.querySelector('#cs-insider-deep')?.addEventListener('click', () => loadInsiders(ui, true))
   } catch (err) {
     console.error('[Cluster Scanner] Insider scan error:', err)
     ui.insiderContent.innerHTML = `<div class="cs-error">Failed to scan insiders.</div>`

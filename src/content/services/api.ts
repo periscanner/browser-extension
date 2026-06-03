@@ -121,11 +121,11 @@ export interface InsiderResult {
   clusters: InsiderCluster[]
 }
 
-export async function fetchInsiders(mint: string, wallets: string[]): Promise<InsiderResult> {
+export async function fetchInsiders(mint: string, wallets: string[], deep = false): Promise<InsiderResult> {
   const response = await fetch(`${API_URL}/extension/insiders`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mint, wallets })
+    body: JSON.stringify({ mint, wallets, deep })
   })
   if (!response.ok) throw new Error('Failed to scan insiders')
   return await response.json()

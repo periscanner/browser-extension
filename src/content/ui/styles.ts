@@ -322,6 +322,22 @@ export function createStyles() {
     .cs-row-amount { font-size: 10px; color: var(--ps-z300); text-align: right; }
     .cs-row-supply { font-size: 10px; text-align: right; }
 
+    /* ---- Insider tab control bar ---- */
+    .cs-insider-bar { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+    .cs-insider-deep {
+      font-family: inherit; font-size: 11px; font-weight: 600; cursor: pointer;
+      color: var(--ps-azure); background: rgba(14, 165, 233, 0.1);
+      border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 5px 10px;
+      transition: all 0.12s;
+    }
+    .cs-insider-deep:hover { background: rgba(14, 165, 233, 0.18); color: var(--ps-azure-hi); }
+    .cs-insider-deep:disabled { opacity: 0.5; cursor: not-allowed; }
+    .cs-insider-badge {
+      font-size: 10px; font-weight: 600; color: var(--ps-azure);
+      background: rgba(14, 165, 233, 0.1); border: 1px solid rgba(14, 165, 233, 0.25);
+      border-radius: 6px; padding: 4px 9px;
+    }
+
     /* ---- Similar tokens ---- */
     .cs-sim-note { font-size: 11px; color: var(--ps-z400); padding: 0 2px 8px; line-height: 1.4; }
     .cs-sim {

@@ -136,9 +136,15 @@ function ageString(pairCreatedAt?: number): string {
 
 const INSIDER_SEV_COLOR = { danger: '#f43f5e', warn: '#f59e0b', low: '#71717a' }
 
-export function renderInsiders(ui: any, clusters: InsiderCluster[], totalSupply: number) {
+export function renderInsiders(ui: any, clusters: InsiderCluster[], totalSupply: number, deep = false) {
+  // Control bar: offer the multi-hop deep scan (or show it's already deep).
+  const control = deep
+    ? `<div class="cs-insider-bar"><span class="cs-insider-badge">Multi-hop · deep</span></div>`
+    : `<div class="cs-insider-bar"><button id="cs-insider-deep" class="cs-insider-deep">Multi-hop deep scan ⤵</button></div>`
+
   if (!clusters.length) {
-    ui.insiderContent.innerHTML = `<div class="cs-empty">No insider transfers among top holders — they bought on-market, not received.</div>`
+    ui.insiderContent.innerHTML = control +
+      `<div class="cs-empty">No insider transfers among top holders — they bought on-market, not received.${deep ? '' : '<br>Try a multi-hop deep scan to follow indirect chains.'}</div>`
     return
   }
 
@@ -190,7 +196,7 @@ export function renderInsiders(ui: any, clusters: InsiderCluster[], totalSupply:
       </div>`
   }).join('')
 
-  ui.insiderContent.innerHTML = summary + cards
+  ui.insiderContent.innerHTML = control + summary + cards
 
   ui.insiderContent.querySelectorAll('.cs-cluster-head').forEach((head: HTMLElement) => {
     head.addEventListener('click', () => head.parentElement?.classList.toggle('is-open'))
