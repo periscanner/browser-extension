@@ -7,7 +7,8 @@ import { makeDraggable } from './utils/drag'
 
 import { createStyles } from './ui/styles'
 import { createWidgetElements } from './ui/dom'
-import { renderResults, renderSimilarTokens, renderInsiders } from './ui/render'
+import { renderResults, renderSimilarTokens } from './ui/render'
+import type { InsiderOverlay } from './ui/render'
 
 import type { ClusterMember, ClusterWithMembers, ScanResult, TokenHolder, SimilarToken } from './types'
 
@@ -29,7 +30,14 @@ let currentSupply: number | null = null
 let devCheckData: DevCheckResult | null = null
 let currentHolderOwners: string[] = []
 let insidersData: InsiderResult | null = null
+let insiderDeep = false
 let similarRequested = false
+
+// Last rendered cluster view inputs — stashed so the insider overlay can be
+// re-rendered (e.g. when insiders land, or after a multi-hop deep insider scan)
+// without re-running the whole scan.
+let lastRelevantClusters: any[] = []
+let lastAmountMap: Map<string, number> = new Map()
 
 // Fire the similar-tokens lookup once per scan, as soon as metadata is known
 // (from Axiom state instantly, or DexScreener) — so the Created chip + Similar
@@ -180,49 +188,52 @@ async function fetchAndRenderSimilarTokens(ui: any, background = false) {
   }
 }
 
-function switchTab(ui: any, tab: 'clusters' | 'insiders' | 'similar') {
+function switchTab(ui: any, tab: 'clusters' | 'similar') {
   const panels: Record<string, HTMLElement> = {
     clusters: ui.content,
-    insiders: ui.insiderContent,
     similar: ui.similarContent,
   }
   const buttons: Record<string, HTMLElement> = {
     clusters: ui.tabClusters,
-    insiders: ui.tabInsiders,
     similar: ui.tabSimilar,
   }
-  for (const k of ['clusters', 'insiders', 'similar']) {
+  for (const k of ['clusters', 'similar']) {
     const active = k === tab
     buttons[k].classList.toggle('cs-tab-active', active)
     panels[k].style.display = active ? 'block' : 'none'
   }
 }
 
-// Lazy-load the Insider Clusters tab (token-transfer graph among top holders).
-// deep = follow the transfer graph multi-hop (A→B→C) instead of just direct.
-// background = auto-fetch (Auto mode): don't show the "scanning" placeholder,
-// just populate the tab + the Insider % chip when done.
-async function loadInsiders(ui: any, deep = false, background = false) {
-  if (!currentMint || currentHolderOwners.length === 0) {
-    if (!background) ui.insiderContent.innerHTML = `<div class="cs-empty">Scan a token first.</div>`
-    return
-  }
+// Current insider data shaped for the cluster-view overlay (null until scanned).
+function insiderOverlay(): InsiderOverlay | null {
+  return insidersData ? { clusters: insidersData.clusters, deep: insiderDeep } : null
+}
+
+// Re-render the Clusters panel from the stashed cluster inputs + current insider
+// overlay. Cheap, no network — call whenever clusters or insiders change.
+function renderClustersView(ui: any) {
+  renderResults(ui, lastRelevantClusters, lastAmountMap, currentSupply || 0, insiderOverlay(), () => loadInsidersDeep(ui))
+}
+
+// Upgrade the insider scan to multi-hop (A→B→C). Re-overlays the cluster view
+// with the richer transfer graph when it lands.
+async function loadInsidersDeep(ui: any) {
+  if (!currentMint || currentHolderOwners.length === 0) return
   const gen = scanGen
   const mint = currentMint
   const owners = currentHolderOwners
-  if (!background) {
-    ui.insiderContent.innerHTML = `<div class="cs-loading">${deep ? 'Deep scanning insider transfers (multi-hop)…' : 'Scanning insider transfers…'}</div>`
-  }
+  const btn = ui.content.querySelector('#cs-insider-deep') as HTMLButtonElement | null
+  if (btn) { btn.disabled = true; btn.textContent = 'Deep scanning…' }
   try {
-    const data = await fetchInsiders(mint, owners, deep)
+    const data = await fetchInsiders(mint, owners, true)
     if (scanGen !== gen) return // a newer scan took over
     insidersData = data
+    insiderDeep = true
     renderTop(ui) // refresh the Insider % chip
-    renderInsiders(ui, data.clusters, currentSupply || 0, deep)
-    ui.insiderContent.querySelector('#cs-insider-deep')?.addEventListener('click', () => loadInsiders(ui, true))
+    renderClustersView(ui)
   } catch (err) {
-    console.error('[Cluster Scanner] Insider scan error:', err)
-    if (!background) ui.insiderContent.innerHTML = `<div class="cs-error">Failed to scan insiders.</div>`
+    console.error('[Cluster Scanner] Deep insider scan error:', err)
+    if (btn) { btn.disabled = false; btn.textContent = 'Multi-hop deep ⤵' }
   }
 }
 
@@ -251,12 +262,14 @@ async function runScan(ui: any, deepScan = false) {
   devCheckData = null
   currentHolderOwners = []
   insidersData = null
+  insiderDeep = false
+  lastRelevantClusters = []
+  lastAmountMap = new Map()
   similarRequested = false
 
   // Render initial header/KPIs (loading state) + clear any prior RUG banner
   renderTop(ui)
   renderAlert(ui)
-  ui.insiderContent.innerHTML = `<div class="cs-loading">Open this tab to scan insider transfers</div>`
 
   // --- Resolve the mint instantly from Axiom state; start the scan ASAP -------
   // Axiom's `recentTickerSol` localStorage maps the URL pool id → the real mint
@@ -349,8 +362,12 @@ async function runScan(ui: any, deepScan = false) {
     renderTop(ui)
 
     const walletAddresses = holders.map((h: TokenHolder) => h.owner)
-    // Top holders for the (lazy-loaded) Insider Clusters tab.
+    // Top holders for the insider transfer-graph scan (overlaid on the clusters).
     currentHolderOwners = nonSystemHolders.map((h: TokenHolder) => h.owner)
+
+    // Insider scan runs in parallel with the cluster work (single Promise.all
+    // resolve below) so its red overlay + section land without extra wall time.
+    const insidersPromise = fetchInsiders(realMint, currentHolderOwners, false).catch(() => null)
 
     // Kick off similar tokens now (fast path: Axiom-state metadata) so the
     // Created chip + Similar tab don't wait for the deep scan to finish.
@@ -400,10 +417,12 @@ async function runScan(ui: any, deepScan = false) {
               const live = await fetchClustersByWallets(walletAddresses)
               if (stopped) return
               const relevant = processClusters(live.clusters || [], amountMap)
+              lastRelevantClusters = relevant
+              lastAmountMap = amountMap
               clusterCount = relevant.length
               renderTop(ui)
-              if (relevant.length) {
-                renderResults(ui, relevant, amountMap, totalSupply)
+              if (relevant.length || insidersData) {
+                renderClustersView(ui)
                 ui.content.insertAdjacentHTML('afterbegin', `<div class="cs-loading" style="padding:8px 2px">${label}</div>`)
               } else {
                 ui.content.innerHTML = `<div class="cs-loading">${label}</div>`
@@ -438,25 +457,28 @@ async function runScan(ui: any, deepScan = false) {
     console.log('[Cluster Scanner] Raw clusters:', clusters)
 
     const relevantClusters = processClusters(clusters, amountMap)
+    lastRelevantClusters = relevantClusters
+    lastAmountMap = amountMap
     clusterCount = relevantClusters.length
     renderTop(ui)
 
-    renderResults(ui, relevantClusters, amountMap, totalSupply)
+    // Render the cluster cards now (insiders may still be in flight — overlaid
+    // as soon as they resolve just below).
+    renderClustersView(ui)
 
-    // Resolve the parallel dev rug check and surface it (banner + verdict + chip).
-    devCheckData = await devCheckPromise
+    // Resolve the parallel insider scan + dev rug check together (single await),
+    // then surface them: insider red overlay + section, RUG banner, verdict, chips.
+    const [insiders, dev] = await Promise.all([insidersPromise, devCheckPromise])
+    if (scanGen !== myGen) return
+    insidersData = insiders
+    devCheckData = dev
     renderAlert(ui)
     renderTop(ui)
+    renderClustersView(ui)
 
     // Similar tokens are already loading (requestSimilar fired early); ensure a
     // fetch even if metadata only just arrived.
     requestSimilar(ui)
-
-    // In Auto mode, also pre-fetch insiders in the background so the Insider %
-    // chip + tab are ready without the user opening the Insiders tab.
-    if (autoDeep && insidersData === null) {
-      void loadInsiders(ui, false, true)
-    }
 
   } catch (err) {
     console.error('[Cluster Scanner] Error:', err)
@@ -597,14 +619,6 @@ function processClusters(clusters: ClusterWithMembers[], amountMap: Map<string, 
     switchTab(ui, 'clusters')
   })
 
-  ui.tabInsiders.addEventListener('click', () => {
-    switchTab(ui, 'insiders')
-    // Lazy-load on first open (cached for the rest of the scan).
-    if (insidersData === null) {
-      loadInsiders(ui)
-    }
-  })
-
   ui.tabSimilar.addEventListener('click', () => {
     switchTab(ui, 'similar')
     if (similarTokensData !== null) {
@@ -635,9 +649,11 @@ function processClusters(clusters: ClusterWithMembers[], amountMap: Map<string, 
       devCheckData = null
       currentHolderOwners = []
       insidersData = null
+      insiderDeep = false
+      lastRelevantClusters = []
+      lastAmountMap = new Map()
       similarRequested = false
       ui.similarContent.innerHTML = `<div class="cs-loading">Scan a token first</div>`
-      ui.insiderContent.innerHTML = `<div class="cs-loading">Scan a token first</div>`
       renderTop(ui)
       renderAlert(ui)
 

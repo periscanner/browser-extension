@@ -326,7 +326,23 @@ export function createStyles() {
       text-align: center; background: rgba(9, 9, 11, 0.2);
     }
 
-    /* ---- Insider tab control bar ---- */
+    /* ---- Insider overlay (red) on cluster rows + standalone insider cards ---- */
+    .cs-cluster--insider { border-color: rgba(244, 63, 94, 0.32); background: rgba(244, 63, 94, 0.03); }
+    .cs-row--insider { background: rgba(244, 63, 94, 0.07); }
+    .cs-row--insider:hover { background: rgba(244, 63, 94, 0.13); }
+    .cs-row-role--insider { background: rgba(244, 63, 94, 0.13); border-color: rgba(244, 63, 94, 0.3); color: #fb7185; }
+    .cs-cluster-insider-badge {
+      font-size: 9px; font-weight: 600; color: #fb7185; flex-shrink: 0; white-space: nowrap;
+      background: rgba(244, 63, 94, 0.1); border: 1px solid rgba(244, 63, 94, 0.25);
+      border-radius: 999px; padding: 1px 7px; line-height: 15px;
+    }
+
+    /* ---- Section divider (e.g. Insider transfers) inside the clusters panel ---- */
+    .cs-section { margin-top: 18px; padding-top: 6px; border-top: 1px solid var(--ps-border-soft); }
+    .cs-section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 2px 12px; }
+    .cs-section-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ps-coral); }
+
+    /* ---- Insider control bar ---- */
     .cs-insider-bar { display: flex; justify-content: flex-end; margin-bottom: 10px; }
     .cs-insider-deep {
       font-family: inherit; font-size: 11px; font-weight: 600; cursor: pointer;

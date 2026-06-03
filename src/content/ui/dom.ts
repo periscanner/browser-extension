@@ -43,16 +43,12 @@ export function createWidgetElements() {
       <div class="cs-tabs">
         <div class="cs-tabs-seg">
           <button id="cs-tab-clusters" class="cs-tab cs-tab-active">Clusters</button>
-          <button id="cs-tab-insiders" class="cs-tab">Insiders</button>
           <button id="cs-tab-similar" class="cs-tab">Similar</button>
         </div>
       </div>
 
       <div id="cs-content" class="cs-content">
         <div class="cs-loading">Click to scan this token</div>
-      </div>
-      <div id="cs-insider-content" class="cs-content" style="display: none;">
-        <div class="cs-loading">Scan a token first</div>
       </div>
       <div id="cs-similar-content" class="cs-similar" style="display: none;">
         <div class="cs-loading">Scan a token first</div>
@@ -76,13 +72,11 @@ export function createWidgetElements() {
     alert: widget.querySelector('#cs-alert') as HTMLElement,
     summary: widget.querySelector('#cs-summary') as HTMLElement,
     content: widget.querySelector('#cs-content') as HTMLElement,
-    insiderContent: widget.querySelector('#cs-insider-content') as HTMLElement,
     similarContent: widget.querySelector('#cs-similar-content') as HTMLElement,
     refreshBtn: widget.querySelector('#cs-refresh') as HTMLButtonElement,
     autoBtn: widget.querySelector('#cs-auto') as HTMLButtonElement,
     deepAnalyzeBtn: widget.querySelector('#cs-deep-analyze') as HTMLButtonElement,
     tabClusters: widget.querySelector('#cs-tab-clusters') as HTMLButtonElement,
-    tabInsiders: widget.querySelector('#cs-tab-insiders') as HTMLButtonElement,
     tabSimilar: widget.querySelector('#cs-tab-similar') as HTMLButtonElement
   }
 }
