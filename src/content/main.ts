@@ -328,12 +328,14 @@ async function runScan(ui: any, deepScan = false) {
           // The heavy Helius/clustering work runs in the background off the request path.
           const ticket = await submitIngestJob(candidatesToIngest, 'normal')
 
-          // Progressive results: refresh the cluster list live as wallets finish
-          // clustering (job progress ≥ 0.8 = clustering phase), so clusters appear
-          // incrementally instead of only after the whole job completes.
+          // Real-time results: the worker now clusters each wallet the moment its
+          // fetch finishes, so `processed` ticks up one wallet at a time. Re-fetch
+          // and re-render the cluster list on every tick — clusters stream in
+          // instead of appearing all at once at the end.
           let refreshing = false
           let stopped = false
-          const liveRefresh = async (pct: number) => {
+          let lastProcessed = -1
+          const liveRefresh = async (processed: number, total: number) => {
             if (refreshing || stopped) return
             refreshing = true
             try {
@@ -343,7 +345,7 @@ async function runScan(ui: any, deepScan = false) {
               clusterCount = relevant.length
               renderTop(ui)
               renderResults(ui, relevant, amountMap, totalSupply)
-              ui.content.insertAdjacentHTML('afterbegin', `<div class="cs-loading" style="padding:8px 2px">Analyzing top holders… ${pct}%</div>`)
+              ui.content.insertAdjacentHTML('afterbegin', `<div class="cs-loading" style="padding:8px 2px">Analyzing top holders… ${processed}/${total}</div>`)
             } catch { /* keep last good render */ }
             finally { refreshing = false }
           }
@@ -351,12 +353,13 @@ async function runScan(ui: any, deepScan = false) {
           await pollIngestJob(ticket.jobId, (progress, processed, total) => {
             const pct = Math.round(progress * 100)
             const totalCount = total ?? candidatesToIngest.length
-            if (progress >= 0.8) {
-              void liveRefresh(pct)
-            } else {
-              ui.content.innerHTML = `<div class="cs-loading">Analyzing top holders… ${processed}/${totalCount} (${pct}%)</div>`
+            if (processed > 0 && processed > lastProcessed) {
+              lastProcessed = processed
+              void liveRefresh(processed, totalCount)
+            } else if (processed === 0) {
+              ui.content.innerHTML = `<div class="cs-loading">Analyzing top holders… ${pct}%</div>`
             }
-          })
+          }, { intervalMs: 1500 })
 
           // Final authoritative refresh once the job completes.
           stopped = true
