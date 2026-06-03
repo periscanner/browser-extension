@@ -126,9 +126,10 @@ function renderTop(ui: any) {
     chips.push(chip('Dev', `<span class="cs-mono">${v}</span>`, cls))
   }
 
-  // Times this token has been created (this launch + matching re-launches found).
+  // Times this token has been created — this launch + EXACT re-launches only
+  // (matchScore === 3 = same ticker AND name AND image), not coincidental matches.
   if (similarTokensData !== null) {
-    const created = similarTokensData.length + 1
+    const created = similarTokensData.filter(t => t.matchScore === 3).length + 1
     chips.push(chip('Created', `<span class="cs-mono">${created}×</span>`, created >= 4 ? 'is-danger' : created >= 2 ? 'is-warn' : 'is-muted'))
     if (oldestBondedToken) {
       chips.push(chip('OG token', `<a href="${oldestBondedToken.axiomLink}" target="_self" class="cs-kpi-link">Go to OG →</a>`))
