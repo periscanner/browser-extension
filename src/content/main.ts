@@ -328,14 +328,13 @@ async function runScan(ui: any, deepScan = false) {
           // The heavy Helius/clustering work runs in the background off the request path.
           const ticket = await submitIngestJob(candidatesToIngest, 'normal')
 
-          // Real-time results: the worker now clusters each wallet the moment its
-          // fetch finishes, so `processed` ticks up one wallet at a time. Re-fetch
-          // and re-render the cluster list on every tick — clusters stream in
-          // instead of appearing all at once at the end.
+          // Real-time results: the worker clusters each wallet as its fetch
+          // finishes. We poll fast and on EVERY tick re-fetch + re-render the
+          // cluster list with whatever's clustered so far — so clusters visibly
+          // stream in (and grow) instead of appearing all at once at the end.
           let refreshing = false
           let stopped = false
-          let lastProcessed = -1
-          const liveRefresh = async (processed: number, total: number) => {
+          const renderLive = async (label: string) => {
             if (refreshing || stopped) return
             refreshing = true
             try {
@@ -344,22 +343,23 @@ async function runScan(ui: any, deepScan = false) {
               const relevant = processClusters(live.clusters || [], amountMap)
               clusterCount = relevant.length
               renderTop(ui)
-              renderResults(ui, relevant, amountMap, totalSupply)
-              ui.content.insertAdjacentHTML('afterbegin', `<div class="cs-loading" style="padding:8px 2px">Analyzing top holders… ${processed}/${total}</div>`)
+              if (relevant.length) {
+                renderResults(ui, relevant, amountMap, totalSupply)
+                ui.content.insertAdjacentHTML('afterbegin', `<div class="cs-loading" style="padding:8px 2px">${label}</div>`)
+              } else {
+                ui.content.innerHTML = `<div class="cs-loading">${label}</div>`
+              }
             } catch { /* keep last good render */ }
             finally { refreshing = false }
           }
 
-          await pollIngestJob(ticket.jobId, (progress, processed, total) => {
-            const pct = Math.round(progress * 100)
+          await pollIngestJob(ticket.jobId, (_progress, processed, total) => {
             const totalCount = total ?? candidatesToIngest.length
-            if (processed > 0 && processed > lastProcessed) {
-              lastProcessed = processed
-              void liveRefresh(processed, totalCount)
-            } else if (processed === 0) {
-              ui.content.innerHTML = `<div class="cs-loading">Analyzing top holders… ${pct}%</div>`
-            }
-          }, { intervalMs: 1500 })
+            const label = processed > 0
+              ? `Analyzing top holders… ${processed}/${totalCount}`
+              : 'Analyzing top holders…'
+            void renderLive(label)
+          }, { intervalMs: 800 })
 
           // Final authoritative refresh once the job completes.
           stopped = true
