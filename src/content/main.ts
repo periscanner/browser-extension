@@ -1,5 +1,5 @@
 import { fetchScanResults, fetchClustersByWallets, submitIngestJob, pollIngestJob, fetchSimilarTokens } from './services/api'
-import { extractTokenFromUrl } from './services/scanner'
+import { extractTokenFromUrl, extractMintFromDom } from './services/scanner'
 
 import { calculatePercentage } from './utils/format'
 import { makeDraggable } from './utils/drag'
@@ -153,28 +153,51 @@ async function runScan(ui: any, deepScan = false) {
   // Render initial header/KPIs (loading state)
   renderTop(ui)
 
-  // Resolve pair to mint if possible using DexScreener
+  // Resolve the URL address to the canonical token MINT (+ metadata). The
+  // /meme/<id> path can be the mint OR an AMM pool id, and brand-new tokens
+  // aren't on DexScreener at all. So: token-lookup → pair-lookup → read the
+  // mint straight from the page DOM. This stops a pool id ever reaching the RPC
+  // ("could not find account").
   let mintAddress = addressFromUrl
   try {
-    const dexResponse = await fetch(`https://api.dexscreener.com/latest/dex/pairs/solana/${addressFromUrl}`)
-    const dexData: any = await dexResponse.json()
-    if (dexData.pairs && dexData.pairs.length > 0) {
-      const pair = dexData.pairs[0]
-      mintAddress = pair.baseToken.address // Use the resolved mint address
+    let pair: any = null
 
+    const tokenRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${addressFromUrl}`)
+    pair = (await tokenRes.json())?.pairs?.[0] || null
+
+    if (!pair) {
+      const pairRes = await fetch(`https://api.dexscreener.com/latest/dex/pairs/solana/${addressFromUrl}`)
+      const pd: any = await pairRes.json()
+      pair = pd?.pairs?.[0] || pd?.pair || null
+    }
+
+    if (pair) {
+      mintAddress = pair.baseToken.address
       tokenMetadata = {
         name: pair.baseToken.name,
         symbol: pair.baseToken.symbol,
         imageUrl: pair.info?.imageUrl
       }
       currentMarketCap = pair.marketCap || 0
+      console.log('[Cluster Scanner] Resolved mint via DexScreener:', mintAddress)
+    } else {
+      // Not indexed yet — get the real mint from the page so we don't scan a pool id.
+      const domMint = extractMintFromDom()
+      if (domMint) {
+        mintAddress = domMint
+        console.log('[Cluster Scanner] DexScreener miss; mint from DOM:', mintAddress)
+      }
+    }
+    currentMint = mintAddress
+    renderTop(ui)
+  } catch (metaErr) {
+    console.warn('[Cluster Scanner] Metadata/resolve failed, trying DOM mint:', metaErr)
+    const domMint = extractMintFromDom()
+    if (domMint) {
+      mintAddress = domMint
       currentMint = mintAddress
-      console.log('[Cluster Scanner] Resolved Mint:', mintAddress)
-      console.log('[Cluster Scanner] Token metadata:', tokenMetadata)
       renderTop(ui)
     }
-  } catch (metaErr) {
-    console.warn('[Cluster Scanner] Failed to fetch/resolve token metadata:', metaErr)
   }
 
   try {
