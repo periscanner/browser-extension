@@ -1,4 +1,4 @@
-import { fetchScanResults, fetchClustersByWallets, ingestWalletsBulk, fetchSimilarTokens } from './services/api'
+import { fetchScanResults, fetchClustersByWallets, submitIngestJob, pollIngestJob, fetchSimilarTokens } from './services/api'
 import { extractTokenFromUrl } from './services/scanner'
 
 import { formatNumber, calculatePercentage } from './utils/format'
@@ -227,11 +227,18 @@ async function runScan(ui: any, deepScan = false) {
       const candidatesToIngest = unknownHolders.slice(0, 10).map(h => h.owner)
 
       if (candidatesToIngest.length > 0) {
-        ui.content.innerHTML = `<div class="cs-loading">Analyzing ${candidatesToIngest.length} new top holders...</div>`
+        ui.content.innerHTML = `<div class="cs-loading">Queuing analysis of ${candidatesToIngest.length} new top holders...</div>`
 
         try {
-          // Call Bulk Ingest API
-          await ingestWalletsBulk(candidatesToIngest)
+          // Submit an async ingestion job (Cloudflare Queues) and poll for progress.
+          // The heavy Helius/clustering work runs in the background off the request path.
+          const ticket = await submitIngestJob(candidatesToIngest, 'normal')
+
+          await pollIngestJob(ticket.jobId, (progress, processed, total) => {
+            const pct = Math.round(progress * 100)
+            const totalCount = total ?? candidatesToIngest.length
+            ui.content.innerHTML = `<div class="cs-loading">Analyzing top holders… ${processed}/${totalCount} (${pct}%)</div>`
+          })
 
           // Re-fetch clusters to include the newly analyzed ones
           ui.content.innerHTML = `<div class="cs-loading">Refreshing cluster data...</div>`

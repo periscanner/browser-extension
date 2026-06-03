@@ -1,11 +1,12 @@
-import { LOGO_PATH } from '../config'
+// Bundle the logo with the extension (no remote-storage dependency).
+import logoUrl from '../../assets/LOGO_CIRCLE_TRANSPARENT_100x100.svg'
 
 export function createWidgetElements() {
   const widget = document.createElement('div')
   widget.id = 'cluster-scanner-widget'
   widget.innerHTML = `
     <button id="cs-toggle" class="cs-toggle" title="Drag to move, click to toggle">
-      <img src="${LOGO_PATH}" alt="Scanner" />
+      <img src="${logoUrl}" alt="Scanner" />
     </button>
     <div id="cs-panel" class="cs-panel">
       <div class="cs-header">
