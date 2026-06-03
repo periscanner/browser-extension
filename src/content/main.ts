@@ -219,61 +219,60 @@ async function runScan(ui: any, deepScan = false) {
   renderAlert(ui)
   ui.insiderContent.innerHTML = `<div class="cs-loading">Open this tab to scan insider transfers</div>`
 
-  // Resolve the URL address to the canonical token MINT (+ metadata). The
-  // /meme/<id> path can be the mint OR an AMM pool id, and brand-new tokens
-  // aren't on DexScreener at all. So: token-lookup → pair-lookup → read the
-  // mint straight from the page DOM. This stops a pool id ever reaching the RPC
-  // ("could not find account").
+  // --- Start the slow work immediately; metadata resolves in parallel --------
+  // The worker's scan endpoint resolves the /meme/<id> pool address to the
+  // canonical mint server-side (one round trip) and returns `resolvedMint`, so
+  // we DON'T block the holder scan on client-side DexScreener resolution. The
+  // scan, the DexScreener metadata fetch, and (after the scan) the dev check all
+  // run concurrently instead of in a long sequential chain.
+  currentMint = addressFromUrl
+  renderTop(ui)
+
+  const scanPromise = fetchScanResults(addressFromUrl)
+
+  // DexScreener metadata (name / symbol / market cap — display only): fire both
+  // lookups at once and update the header when they land. Never blocks the scan.
+  void (async () => {
+    try {
+      const [tok, prs] = await Promise.all([
+        fetch(`https://api.dexscreener.com/latest/dex/tokens/${addressFromUrl}`).then(r => r.json()).catch(() => null),
+        fetch(`https://api.dexscreener.com/latest/dex/pairs/solana/${addressFromUrl}`).then(r => r.json()).catch(() => null),
+      ])
+      const pair: any = tok?.pairs?.[0] || prs?.pairs?.[0] || prs?.pair || null
+      if (pair) {
+        tokenMetadata = { name: pair.baseToken.name, symbol: pair.baseToken.symbol, imageUrl: pair.info?.imageUrl }
+        currentMarketCap = pair.marketCap || 0
+        renderTop(ui)
+      }
+    } catch { /* metadata is best-effort */ }
+  })()
+
   let mintAddress = addressFromUrl
   try {
-    let pair: any = null
+    // 1. Fetch Top Holders (the worker resolves + returns the canonical mint).
+    let scanData: ScanResult | null = await scanPromise.catch(() => null)
 
-    const tokenRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${addressFromUrl}`)
-    pair = (await tokenRes.json())?.pairs?.[0] || null
-
-    if (!pair) {
-      const pairRes = await fetch(`https://api.dexscreener.com/latest/dex/pairs/solana/${addressFromUrl}`)
-      const pd: any = await pairRes.json()
-      pair = pd?.pairs?.[0] || pd?.pair || null
-    }
-
-    if (pair) {
-      mintAddress = pair.baseToken.address
-      tokenMetadata = {
-        name: pair.baseToken.name,
-        symbol: pair.baseToken.symbol,
-        imageUrl: pair.info?.imageUrl
-      }
-      currentMarketCap = pair.marketCap || 0
-      console.log('[Cluster Scanner] Resolved mint via DexScreener:', mintAddress)
-    } else {
-      // Not indexed yet — get the real mint from the page so we don't scan a pool id.
+    // Brand-new tokens the worker can't resolve (not on DexScreener): retry once
+    // with the mint read straight from the page DOM so a pool id never scans empty.
+    if (!scanData || !(scanData.holders || []).length) {
       const domMint = extractMintFromDom()
-      if (domMint) {
+      if (domMint && domMint !== addressFromUrl) {
         mintAddress = domMint
-        console.log('[Cluster Scanner] DexScreener miss; mint from DOM:', mintAddress)
+        scanData = await fetchScanResults(domMint).catch(() => null)
       }
     }
-    currentMint = mintAddress
-    renderTop(ui)
-  } catch (metaErr) {
-    console.warn('[Cluster Scanner] Metadata/resolve failed, trying DOM mint:', metaErr)
-    const domMint = extractMintFromDom()
-    if (domMint) {
-      mintAddress = domMint
-      currentMint = mintAddress
-      renderTop(ui)
+    if (!scanData) {
+      ui.content.innerHTML = `<div class="cs-error">Could not scan this token.</div>`
+      return
     }
-  }
-
-  // Kick off the dev/creator rug check in parallel — it runs while we fetch
-  // holders + clusters, so the RUG banner costs no extra wall-time.
-  const devCheckPromise = fetchDevCheck(mintAddress).catch(() => null)
-
-  try {
-    // 1. Fetch Top Holders
-    const scanData: ScanResult = await fetchScanResults(mintAddress)
     console.log('[Cluster Scanner] Scan data:', scanData)
+
+    // Use the worker-resolved mint for the dev check + insiders.
+    const realMint = scanData.resolvedMint || mintAddress
+    currentMint = realMint
+    renderTop(ui)
+    // Dev check runs in parallel with the cluster fetch + render below.
+    const devCheckPromise = fetchDevCheck(realMint).catch(() => null)
 
     const holders: TokenHolder[] = scanData.holders || []
     const totalSupply = scanData.stats.totalSupply
