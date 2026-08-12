@@ -75,6 +75,15 @@ export interface SimilarToken {
   fdv: number;
   marketCap: number;
   pairCreatedAt: number;
+  /**
+   * Which event `pairCreatedAt` describes. `"pool"` is the first-pool date this
+   * column normally shows; `"mint"` is scanner-api's on-chain creation fallback
+   * for mints DexScreener carries no pool date for (it omits `pairCreatedAt` on
+   * a chunk of older pump.fun bonding-curve pairs); `"unknown"` means neither
+   * could be established. Optional — a scanner-api deployed before the fallback
+   * omits the key entirely.
+   */
+  pairCreatedAtSource?: 'pool' | 'mint' | 'unknown';
   info?: {
     imageUrl?: string;
   };

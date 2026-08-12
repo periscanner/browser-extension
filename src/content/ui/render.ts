@@ -18,6 +18,11 @@ const ACCENT_ROLES = new Set(['hub', 'funder', 'funded', 'primary'])
 // doesn't build hundreds of rows. The card stays scannable; the rest are summarized.
 const MEMBER_ROW_CAP = 25
 
+// Same floor as the telegram bot's /og lineage (telegram-bot/src/lib/format.ts):
+// a matchScore-1 row (ticker OR name OR image alone, not two-of-three) turns up
+// unrelated coins on a common word, so the default view hides it behind "Show all".
+const MIN_MATCH_SCORE = 2
+
 function clusterSeverity(supplyPct: number): Severity {
   if (supplyPct >= 20) return 'danger'
   if (supplyPct >= 8) return 'warn'
@@ -238,8 +243,10 @@ export function renderResults(
 }
 
 function ageString(pairCreatedAt?: number): string {
+  // pairCreatedAt is already epoch ms (DexScreener's native format, passed
+  // through as-is by scanner-api) — no *1000 here.
   if (!pairCreatedAt) return '—'
-  const ms = Date.now() - pairCreatedAt * 1000
+  const ms = Date.now() - pairCreatedAt
   if (ms < 0) return 'new'
   const mins = Math.floor(ms / 60000)
   if (mins < 60) return `${mins}m`
@@ -248,64 +255,146 @@ function ageString(pairCreatedAt?: number): string {
   return `${Math.floor(hrs / 24)}d`
 }
 
+// Exact first-pool date — same format and value as the bot's "DATE (UTC)"
+// column (telegram-bot/src/lib/format.ts formatDate). A token whose date is
+// unknown (no pool carries a valid pairCreatedAt) renders "?", same as the bot.
+// A "~" prefix means scanner-api dated the row from the mint's on-chain
+// creation because DexScreener has no pool date for it — same marker and same
+// meaning as the bot's column, so the two surfaces read alike.
+function formatExactDate(token: SimilarToken): string {
+  const marker = token.pairCreatedAtSource === 'mint' ? '~' : ''
+  if (!token.pairCreatedAt) return `${marker}?`
+  const d = new Date(token.pairCreatedAt)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${marker}${pad(d.getUTCDate())}-${pad(d.getUTCMonth() + 1)}-${d.getUTCFullYear()} ` +
+    `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())} UTC`
+}
+
+export interface SimilarTokensOptions {
+  /** The token currently being scanned — marks its own row, if present in the list. */
+  scannedMint?: string | null
+  /** Mirrors /og's `[ Show all ]` toggle: filtered (matchScore >= 2) by default. */
+  showAll: boolean
+  /** Wired to the "Show all" / "Show filtered only" button, when there's anything to toggle. */
+  onToggleShowAll?: () => void
+}
+
+function similarRowHtml(token: SimilarToken, rank: number, crowned: boolean, isYou: boolean): string {
+  const highRisk = token.matchScore === 3
+  const isBonded = token.marketCap >= 60000
+
+  const avatar = token.info?.imageUrl
+    ? `<img src="${token.info.imageUrl}" alt="" class="cs-sim-avatar" />`
+    : `<div class="cs-sim-avatar cs-sim-glyph">◎</div>`
+
+  const marketCap = token.marketCap
+    ? `$${token.marketCap >= 1e6 ? (token.marketCap / 1e6).toFixed(1) + 'M' : (token.marketCap / 1e3).toFixed(0) + 'k'}`
+    : 'N/A'
+
+  const badge = highRisk
+    ? `<span class="cs-sim-badge cs-sim-badge--danger">High match</span>`
+    : isBonded
+      ? `<span class="cs-sim-badge cs-sim-badge--safe">Bonded</span>`
+      : ''
+
+  const chip = (on: boolean | undefined, label: string) =>
+    `<span class="cs-sim-chip ${on ? 'on' : ''}">${label}</span>`
+
+  const rowClass = highRisk ? 'cs-sim cs-sim--danger' : (token.matchScore === 2 ? 'cs-sim cs-sim--warn' : 'cs-sim')
+
+  return `
+    <div class="${rowClass}" data-axiom-link="${token.axiomLink}">
+      <span class="cs-sim-rank ${crowned ? 'cs-sim-rank--og' : ''}" title="${crowned ? 'OG token — oldest bonded match' : `Rank ${rank}, oldest first`}">${crowned ? '👑' : ''}${rank}</span>
+      ${avatar}
+      <div class="cs-sim-main">
+        <div class="cs-sim-top">
+          <span class="cs-sim-name">${token.baseToken.symbol || token.baseToken.name}</span>
+          ${isYou ? '<span class="cs-sim-you">◀ you</span>' : ''}
+          ${badge}
+        </div>
+        <div class="cs-sim-meta cs-mono">
+          <span>${marketCap}</span>
+          <span class="dot"></span>
+          <span>${ageString(token.pairCreatedAt)}</span>
+        </div>
+        <div class="cs-sim-date cs-mono" title="${token.pairCreatedAtSource === 'mint' ? 'Mint creation date — DexScreener has no pool date for this token' : 'First pool date'}">${formatExactDate(token)}</div>
+      </div>
+      <div class="cs-sim-matches">
+        ${chip(token.match.ticker, 'T')}
+        ${chip(token.match.name, 'N')}
+        ${chip(token.match.image, 'I')}
+      </div>
+      <button class="cs-sim-copy" data-full-address="${token.baseToken.address}" title="Copy address">⧉</button>
+    </div>
+  `
+}
+
+/**
+ * Same lineage shape as the bot's /og: oldest-first (scanner-api's native
+ * order), matchScore>=2 by default with a "Show all N" toggle behind a
+ * hidden-count footer, the oldest *bonded* row in what's rendered crowned 👑,
+ * and the scanned token's own row (if present) marked ◀you. No row cap —
+ * unlike a Telegram message, this panel scrolls.
+ */
 export function renderSimilarTokens(
   ui: any,
-  tokens: SimilarToken[]
+  tokens: SimilarToken[],
+  opts: SimilarTokensOptions
 ) {
   if (tokens.length === 0) {
     ui.similarContent.innerHTML = `<div class="cs-empty">No similar tokens found.</div>`
     return
   }
 
+  const strong = tokens.filter((t) => t.matchScore >= MIN_MATCH_SCORE)
+  const hiddenCount = tokens.length - strong.length
+  const rows = opts.showAll ? tokens : strong
+
+  // Oldest bonded row *among what's rendered* — matches /og's findOgTokenIndex:
+  // deliberately scoped to the filtered/show-all view on screen, not the raw list.
+  const ogIndex = rows.findIndex((t) => t.marketCap >= 60000)
+
   const note = `<div class="cs-sim-note">${tokens.length} token${tokens.length === 1 ? '' : 's'} sharing this name, ticker or image — possible copycats or relaunches.</div>`
 
-  const rows = tokens.map((token) => {
-    const highRisk = token.matchScore === 3
-    const isBonded = token.marketCap >= 60000
+  const body = rows.length > 0
+    ? rows.map((token, i) => similarRowHtml(
+        token,
+        i + 1,
+        i === ogIndex,
+        !!opts.scannedMint && token.baseToken.address === opts.scannedMint
+      )).join('')
+    : `<div class="cs-empty">No strong (2+ signal) matches — ${hiddenCount} ticker-only match${hiddenCount === 1 ? '' : 'es'} hidden.</div>`
 
-    const avatar = token.info?.imageUrl
-      ? `<img src="${token.info.imageUrl}" alt="" class="cs-sim-avatar" />`
-      : `<div class="cs-sim-avatar cs-sim-glyph">◎</div>`
+  const footer = hiddenCount > 0
+    ? `<div class="cs-sim-footer">
+        <span>${hiddenCount} ticker-only match${hiddenCount === 1 ? '' : 'es'} hidden</span>
+        <button id="cs-sim-toggle" class="cs-sim-toggle">${opts.showAll ? 'Show filtered only' : `Show all ${tokens.length}`}</button>
+      </div>`
+    : ''
 
-    const marketCap = token.marketCap
-      ? `$${token.marketCap >= 1e6 ? (token.marketCap / 1e6).toFixed(1) + 'M' : (token.marketCap / 1e3).toFixed(0) + 'k'}`
-      : 'N/A'
+  ui.similarContent.innerHTML = note + body + footer
 
-    const badge = highRisk
-      ? `<span class="cs-sim-badge cs-sim-badge--danger">High match</span>`
-      : isBonded
-        ? `<span class="cs-sim-badge cs-sim-badge--safe">Bonded</span>`
-        : ''
-
-    const chip = (on: boolean | undefined, label: string) =>
-      `<span class="cs-sim-chip ${on ? 'on' : ''}">${label}</span>`
-
-    const rowClass = highRisk ? 'cs-sim cs-sim--danger' : (token.matchScore === 2 ? 'cs-sim cs-sim--warn' : 'cs-sim')
-
-    return `
-      <a href="${token.axiomLink}" target="_blank" class="${rowClass}">
-        ${avatar}
-        <div class="cs-sim-main">
-          <div class="cs-sim-top">
-            <span class="cs-sim-name">${token.baseToken.symbol || token.baseToken.name}</span>
-            ${badge}
-          </div>
-          <div class="cs-sim-meta cs-mono">
-            <span>${marketCap}</span>
-            <span class="dot"></span>
-            <span>${ageString(token.pairCreatedAt)}</span>
-          </div>
-        </div>
-        <div class="cs-sim-matches">
-          ${chip(token.match.ticker, 'T')}
-          ${chip(token.match.name, 'N')}
-          ${chip(token.match.image, 'I')}
-        </div>
-      </a>
-    `
-  }).join('')
-
-  ui.similarContent.innerHTML = note + rows
+  // Row click opens the token's Axiom page — except when the click landed on
+  // the copy button, which stops propagation below instead.
+  ui.similarContent.querySelectorAll('.cs-sim').forEach((el: HTMLElement) => {
+    el.addEventListener('click', () => {
+      const href = el.getAttribute('data-axiom-link')
+      if (href) window.open(href, '_blank', 'noopener')
+    })
+  })
+  ui.similarContent.querySelectorAll('.cs-sim-copy').forEach((btn: HTMLElement) => {
+    btn.addEventListener('click', async (e: Event) => {
+      e.stopPropagation()
+      const address = btn.getAttribute('data-full-address')
+      if (!address) return
+      try { await navigator.clipboard.writeText(address); showToast('Address copied') }
+      catch (err) { console.error('Failed to copy', err) }
+    })
+  })
+  const toggleBtn = ui.similarContent.querySelector('#cs-sim-toggle') as HTMLButtonElement | null
+  if (toggleBtn && opts.onToggleShowAll) {
+    toggleBtn.addEventListener('click', (e: Event) => { e.stopPropagation(); opts.onToggleShowAll!() })
+  }
 }
 
 function showToast(message: string) {
