@@ -1,4 +1,5 @@
 import { formatNumber, calculatePercentage } from '../utils/format'
+import { escapeHtml, safeImageUrl, safeHttpUrl } from '../utils/escape'
 import { ClusterMember, SimilarToken } from '../types'
 import type { InsiderCluster, InsiderMember } from '../services/api'
 import { WEBAPP_URL } from '../config'
@@ -58,8 +59,8 @@ function buildInsiderCard(c: InsiderCluster, totalSupply: number): string {
     const roleCls = m.role === 'source' ? 'cs-row-role--accent' : m.role === 'relay' ? 'cs-row-role--warn' : 'cs-row-role--insider'
     return `
       <div class="cs-row ${m.role !== 'source' ? 'cs-row--insider' : ''}">
-        <span class="cs-row-addr cs-mono" data-full-address="${m.wallet}" title="Click to copy">${m.wallet.slice(0, 4)}…${m.wallet.slice(-3)}</span>
-        <span class="cs-row-role ${roleCls}">${m.role}</span>
+        <span class="cs-row-addr cs-mono" data-full-address="${escapeHtml(m.wallet)}" title="Click to copy">${escapeHtml(m.wallet.slice(0, 4))}…${escapeHtml(m.wallet.slice(-3))}</span>
+        <span class="cs-row-role ${roleCls}">${escapeHtml(m.role)}</span>
         <span class="cs-row-amount cs-mono">${formatNumber(amt)}</span>
         <span class="cs-row-supply cs-mono" style="color:${color}">${calculatePercentage(amt, totalSupply)}</span>
       </div>`
@@ -73,7 +74,7 @@ function buildInsiderCard(c: InsiderCluster, totalSupply: number): string {
       <div class="cs-cluster-head">
         <div class="cs-cluster-title">
           <span class="cs-cluster-sev" style="background:${color}"></span>
-          <span class="cs-cluster-name cs-mono">${source.wallet.slice(0, 4)}…${source.wallet.slice(-3)} → ${c.insiderCount} insider${c.insiderCount > 1 ? 's' : ''}</span>
+          <span class="cs-cluster-name cs-mono">${escapeHtml(source.wallet.slice(0, 4))}…${escapeHtml(source.wallet.slice(-3))} → ${c.insiderCount} insider${c.insiderCount > 1 ? 's' : ''}</span>
           <span class="cs-cluster-count cs-mono">${c.members.length}</span>
         </div>
         <div class="cs-cluster-head-right">
@@ -154,8 +155,8 @@ export function renderResults(
         const roleLabel = received ? ins!.role : (m.role || 'member')
         return `
           <div class="cs-row ${received ? 'cs-row--insider' : ''}">
-            <span class="cs-row-addr cs-mono" data-full-address="${m.wallet_address}" title="Click to copy">${m.wallet_address.slice(0, 4)}…${m.wallet_address.slice(-3)}</span>
-            <span class="cs-row-role ${roleClass}">${roleLabel}</span>
+            <span class="cs-row-addr cs-mono" data-full-address="${escapeHtml(m.wallet_address)}" title="Click to copy">${escapeHtml(m.wallet_address.slice(0, 4))}…${escapeHtml(m.wallet_address.slice(-3))}</span>
+            <span class="cs-row-role ${roleClass}">${escapeHtml(roleLabel)}</span>
             <span class="cs-row-amount cs-mono">${formatNumber(amount)}</span>
             <span class="cs-row-supply cs-mono" style="${supplyColor}">${calculatePercentage(amount, totalSupply)}</span>
           </div>
@@ -170,7 +171,7 @@ export function renderResults(
           <div class="cs-cluster-head">
             <div class="cs-cluster-title">
               <span class="cs-cluster-sev" style="background:${SEV_COLOR[sev]}"></span>
-              <a href="${WEBAPP_URL}/cluster/${c.cluster_id}" target="_blank" class="cs-cluster-name">${c.cluster_name || 'Unnamed cluster'}</a>
+              <a href="${WEBAPP_URL}/cluster/${escapeHtml(c.cluster_id)}" target="_blank" class="cs-cluster-name">${escapeHtml(c.cluster_name || 'Unnamed cluster')}</a>
               <span class="cs-cluster-count cs-mono">${c.members.length}</span>
               ${insiderBadge}
             </div>
@@ -283,8 +284,9 @@ function similarRowHtml(token: SimilarToken, rank: number, crowned: boolean, isY
   const highRisk = token.matchScore === 3
   const isBonded = token.marketCap >= 60000
 
-  const avatar = token.info?.imageUrl
-    ? `<img src="${token.info.imageUrl}" alt="" class="cs-sim-avatar" />`
+  const safeImage = safeImageUrl(token.info?.imageUrl)
+  const avatar = safeImage
+    ? `<img src="${escapeHtml(safeImage)}" alt="" class="cs-sim-avatar" />`
     : `<div class="cs-sim-avatar cs-sim-glyph">◎</div>`
 
   const marketCap = token.marketCap
@@ -302,13 +304,21 @@ function similarRowHtml(token: SimilarToken, rank: number, crowned: boolean, isY
 
   const rowClass = highRisk ? 'cs-sim cs-sim--danger' : (token.matchScore === 2 ? 'cs-sim cs-sim--warn' : 'cs-sim')
 
+  // axiomLink is API-derived like everything else here — only wire up the
+  // click-to-open behaviour (row click / row-click handler below reads this
+  // back and calls window.open) for a genuine http(s) URL. An invalid/unsafe
+  // link (e.g. a javascript: URI) just omits the attribute, so the click
+  // handler's `if (href)` guard makes the row inert instead of navigating.
+  const safeLink = safeHttpUrl(token.axiomLink)
+  const linkAttr = safeLink ? ` data-axiom-link="${escapeHtml(safeLink)}"` : ''
+
   return `
-    <div class="${rowClass}" data-axiom-link="${token.axiomLink}">
+    <div class="${rowClass}"${linkAttr}>
       <span class="cs-sim-rank ${crowned ? 'cs-sim-rank--og' : ''}" title="${crowned ? 'OG token — oldest bonded match' : `Rank ${rank}, oldest first`}">${crowned ? '👑' : ''}${rank}</span>
       ${avatar}
       <div class="cs-sim-main">
         <div class="cs-sim-top">
-          <span class="cs-sim-name">${token.baseToken.symbol || token.baseToken.name}</span>
+          <span class="cs-sim-name">${escapeHtml(token.baseToken.symbol || token.baseToken.name)}</span>
           ${isYou ? '<span class="cs-sim-you">◀ you</span>' : ''}
           ${badge}
         </div>
@@ -324,7 +334,7 @@ function similarRowHtml(token: SimilarToken, rank: number, crowned: boolean, isY
         ${chip(token.match.name, 'N')}
         ${chip(token.match.image, 'I')}
       </div>
-      <button class="cs-sim-copy" data-full-address="${token.baseToken.address}" title="Copy address">⧉</button>
+      <button class="cs-sim-copy" data-full-address="${escapeHtml(token.baseToken.address)}" title="Copy address">⧉</button>
     </div>
   `
 }

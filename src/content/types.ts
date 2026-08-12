@@ -90,6 +90,12 @@ export interface SimilarToken {
   match: SimilarTokenMatch;
   matchScore: number; // 0-3 based on how many fields match
   axiomLink: string;
+  /**
+   * pump.fun creator-fee configuration. `'cashback'` and `'fee_share'` get a
+   * small indicator icon in the OG lineage strip; `'default'`, missing, or
+   * any unrecognised value renders no icon at all.
+   */
+  feeCategory?: 'cashback' | 'fee_share' | 'default';
 }
 
 export interface SimilarTokensResponse {

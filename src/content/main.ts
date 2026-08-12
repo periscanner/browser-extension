@@ -4,11 +4,13 @@ import { extractTokenFromUrl, extractMintFromDom, tokenFromAxiomState } from './
 
 import { calculatePercentage } from './utils/format'
 import { makeDraggable } from './utils/drag'
+import { escapeHtml, safeImageUrl, safeHttpUrl } from './utils/escape'
 
 import { createStyles } from './ui/styles'
 import { createWidgetElements } from './ui/dom'
 import { renderResults, renderSimilarTokens } from './ui/render'
 import type { InsiderOverlay } from './ui/render'
+import { initOgStrip } from './ui/ogStrip'
 
 import type { ClusterMember, ClusterWithMembers, ScanResult, TokenHolder, SimilarToken } from './types'
 
@@ -81,12 +83,17 @@ function renderAlert(ui: any) {
 // strip. Safe to call at any scan stage — missing values render as placeholders.
 function renderTop(ui: any) {
   const hasToken = !!tokenMetadata
-  const symbol = hasToken ? `$${tokenMetadata!.symbol || tokenMetadata!.name || '???'}` : 'Periscanner'
+  // symbol/name/imageUrl come from Axiom's localStorage and DexScreener/scanner-api
+  // metadata — fully attacker-controlled (Solana token metadata is unrestricted) and
+  // injected straight into this document via innerHTML, so text is escaped and the
+  // image goes through safeImageUrl with the same glyph fallback used for "no image".
+  const symbol = hasToken ? `$${escapeHtml(tokenMetadata!.symbol || tokenMetadata!.name || '???')}` : 'Periscanner'
   const mintShort = currentMint
-    ? `${currentMint.slice(0, 4)}…${currentMint.slice(-4)}`
+    ? `${escapeHtml(currentMint.slice(0, 4))}…${escapeHtml(currentMint.slice(-4))}`
     : (hasToken ? '' : 'no token loaded')
-  const avatar = hasToken && tokenMetadata!.imageUrl
-    ? `<div class="cs-token-avatar"><img src="${tokenMetadata!.imageUrl}" alt="" /><span class="cs-token-dot"></span></div>`
+  const avatarImg = hasToken ? safeImageUrl(tokenMetadata!.imageUrl) : null
+  const avatar = avatarImg
+    ? `<div class="cs-token-avatar"><img src="${escapeHtml(avatarImg)}" alt="" /><span class="cs-token-dot"></span></div>`
     : `<div class="cs-token-avatar"><div class="cs-token-glyph"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg></div></div>`
   ui.token.innerHTML = `${avatar}<div class="cs-token-meta"><span class="cs-token-symbol">${symbol}</span><span class="cs-token-mint cs-mono">${mintShort}</span></div>`
 
@@ -151,8 +158,13 @@ function renderTop(ui: any) {
   if (similarTokensData !== null) {
     const created = similarTokensData.filter(t => t.matchScore === 3).length + 1
     chips.push(chip('Created', `<span class="cs-mono">${created}×</span>`, created >= 4 ? 'is-danger' : created >= 2 ? 'is-warn' : 'is-muted'))
-    if (oldestBondedToken) {
-      chips.push(chip('OG token', `<a href="${oldestBondedToken.axiomLink}" target="_self" class="cs-kpi-link">Go to OG →</a>`))
+    // axiomLink is scanner-api-derived like the rest of a SimilarToken (see
+    // render.ts's similarRowHtml) — only render the link for a genuine http(s)
+    // URL; an unsafe/malformed one (e.g. javascript:) just drops the chip
+    // instead of building a real, clickable <a href> to it.
+    const ogLink = oldestBondedToken ? safeHttpUrl(oldestBondedToken.axiomLink) : null
+    if (ogLink) {
+      chips.push(chip('OG token', `<a href="${escapeHtml(ogLink)}" target="_self" class="cs-kpi-link">Go to OG →</a>`))
     }
   }
 
@@ -540,6 +552,10 @@ function processClusters(clusters: ClusterWithMembers[], amountMap: Map<string, 
 (function init() {
   createStyles()
   const ui = createWidgetElements()
+
+  // OG lineage strip — injected into Axiom's own chrome, independent of `ui`
+  // and the panel's scan/reset lifecycle (works with the panel closed).
+  initOgStrip()
 
   const dragSystem = makeDraggable(ui.container, ui.toggleBtn)
 
