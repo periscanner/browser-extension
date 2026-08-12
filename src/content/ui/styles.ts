@@ -362,31 +362,49 @@ export function createStyles() {
     .cs-sim-note { font-size: 11px; color: var(--ps-z400); padding: 0 2px 8px; line-height: 1.4; }
     .cs-sim {
       display: flex; align-items: center; gap: 10px;
-      padding: 8px; margin-bottom: 6px;
+      padding: 8px; margin-bottom: 6px; cursor: pointer;
       background: rgba(24, 24, 27, 0.4);
       border: 1px solid var(--ps-border-soft); border-radius: 8px;
-      text-decoration: none; transition: background 0.12s;
+      transition: background 0.12s;
     }
     .cs-sim:last-child { margin-bottom: 0; }
     .cs-sim:hover { background: rgba(63, 63, 70, 0.25); }
     .cs-sim--danger { border-color: rgba(244, 63, 94, 0.3); box-shadow: inset 0 0 20px rgba(244, 63, 94, 0.05); }
     .cs-sim--warn   { border-color: rgba(245, 158, 11, 0.28); }
+    .cs-sim-rank { width: 20px; flex-shrink: 0; text-align: center; font-size: 10px; font-weight: 700; color: var(--ps-z500); }
+    .cs-sim-rank--og { color: var(--ps-amber); }
     .cs-sim-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 1px solid var(--ps-border); flex-shrink: 0; background: var(--ps-bg-2); }
     .cs-sim-glyph { display: flex; align-items: center; justify-content: center; color: var(--ps-z500); font-size: 14px; }
     .cs-sim-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-    .cs-sim-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .cs-sim-name { font-size: 12px; font-weight: 600; color: var(--ps-z200); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .cs-sim-badge { font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+    .cs-sim-top { display: flex; align-items: center; gap: 6px; }
+    .cs-sim-name { flex: 1; min-width: 0; font-size: 12px; font-weight: 600; color: var(--ps-z200); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cs-sim-you { font-size: 9px; font-weight: 700; color: var(--ps-azure); background: rgba(14, 165, 233, 0.1); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 4px; padding: 1px 5px; white-space: nowrap; flex-shrink: 0; }
+    .cs-sim-badge { flex-shrink: 0; font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
     .cs-sim-badge--danger { color: var(--ps-coral); background: rgba(244, 63, 94, 0.1); border: 1px solid rgba(244, 63, 94, 0.2); }
     .cs-sim-badge--safe { color: var(--ps-emerald); background: rgba(52, 211, 153, 0.1); border: 1px solid rgba(52, 211, 153, 0.2); }
     .cs-sim-meta { display: flex; align-items: center; gap: 8px; font-size: 10px; color: var(--ps-z500); }
     .cs-sim-meta .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--ps-z600); }
+    .cs-sim-date { font-size: 9px; color: var(--ps-z600); margin-top: 1px; }
     .cs-sim-matches { display: flex; gap: 4px; flex-shrink: 0; }
     .cs-sim-chip {
       font-size: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em;
       padding: 2px 5px; border-radius: 4px; border: 1px solid var(--ps-border); color: var(--ps-z600);
     }
     .cs-sim-chip.on { color: var(--ps-coral); border-color: rgba(244, 63, 94, 0.3); background: rgba(244, 63, 94, 0.08); }
+    .cs-sim-copy {
+      flex-shrink: 0; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+      border-radius: 6px; border: 1px solid var(--ps-border); background: transparent; color: var(--ps-z500);
+      cursor: pointer; font-size: 11px; line-height: 1; transition: all 0.12s;
+    }
+    .cs-sim-copy:hover { color: var(--ps-z100); border-color: var(--ps-z600); background: rgba(63, 63, 70, 0.25); }
+    .cs-sim-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 2px 2px; font-size: 10px; color: var(--ps-z500); }
+    .cs-sim-toggle {
+      font-family: inherit; font-size: 10px; font-weight: 600; cursor: pointer; white-space: nowrap;
+      color: var(--ps-azure); background: rgba(14, 165, 233, 0.1);
+      border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 4px 8px;
+      transition: all 0.12s;
+    }
+    .cs-sim-toggle:hover { background: rgba(14, 165, 233, 0.18); color: var(--ps-azure-hi); }
 
     /* ---- Footer ---- */
     .cs-footer {

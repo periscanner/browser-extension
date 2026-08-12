@@ -32,6 +32,8 @@ let currentHolderOwners: string[] = []
 let insidersData: InsiderResult | null = null
 let insiderDeep = false
 let similarRequested = false
+// Mirrors /og's `[ Show all ]` toggle — filtered (matchScore >= 2) by default.
+let similarShowAll = false
 
 // Last rendered cluster view inputs — stashed so the insider overlay can be
 // re-rendered (e.g. when insiders land, or after a multi-hop deep insider scan)
@@ -157,6 +159,18 @@ function renderTop(ui: any) {
   ui.summary.innerHTML = chips.join('')
 }
 
+// Re-renders the Similar tab from whatever's already fetched, threading the
+// scanned mint (for the ◀you marker) and the Show-all toggle state/handler
+// through — the single call site every render.ts SimilarTokensOptions param goes through.
+function renderSimilar(ui: any) {
+  if (!similarTokensData) return
+  renderSimilarTokens(ui, similarTokensData, {
+    scannedMint: currentMint,
+    showAll: similarShowAll,
+    onToggleShowAll: () => { similarShowAll = !similarShowAll; renderSimilar(ui) },
+  })
+}
+
 async function fetchAndRenderSimilarTokens(ui: any, background = false) {
   if (!tokenMetadata) {
     if (!background) ui.similarContent.innerHTML = `<div class="cs-error">No token metadata available. Scan a token first.</div>`
@@ -175,12 +189,13 @@ async function fetchAndRenderSimilarTokens(ui: any, background = false) {
     if (currentMint !== mintAtCall) return // navigated away mid-fetch
 
     similarTokensData = response.tokens
+    similarShowAll = false // fresh data for a (possibly new) token — default back to filtered
 
     // Find oldest bonded token (market cap >= 60k)
     const bondedTokens = similarTokensData.filter(t => t.marketCap >= 60000)
     oldestBondedToken = bondedTokens.length > 0 ? bondedTokens[0] : null
 
-    renderSimilarTokens(ui, similarTokensData)
+    renderSimilar(ui)
     renderTop(ui)
   } catch (err) {
     console.error('[Cluster Scanner] Similar tokens error:', err)
@@ -266,6 +281,7 @@ async function runScan(ui: any, deepScan = false) {
   lastRelevantClusters = []
   lastAmountMap = new Map()
   similarRequested = false
+  similarShowAll = false
 
   // Render initial header/KPIs (loading state) + clear any prior RUG banner
   renderTop(ui)
@@ -622,7 +638,7 @@ function processClusters(clusters: ClusterWithMembers[], amountMap: Map<string, 
   ui.tabSimilar.addEventListener('click', () => {
     switchTab(ui, 'similar')
     if (similarTokensData !== null) {
-      renderSimilarTokens(ui, similarTokensData)
+      renderSimilar(ui)
       renderTop(ui)
     } else if (tokenMetadata) {
       // Not loaded yet (or in flight) — show a foreground load.
@@ -653,6 +669,7 @@ function processClusters(clusters: ClusterWithMembers[], amountMap: Map<string, 
       lastRelevantClusters = []
       lastAmountMap = new Map()
       similarRequested = false
+      similarShowAll = false
       ui.similarContent.innerHTML = `<div class="cs-loading">Scan a token first</div>`
       renderTop(ui)
       renderAlert(ui)
