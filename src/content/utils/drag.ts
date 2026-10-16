@@ -1,4 +1,25 @@
-export function makeDraggable(container: HTMLElement, handle: HTMLElement) {
+export interface WidgetPosition { left: number; top: number }
+
+/** Pin the container at an absolute viewport position, clamped so it stays fully on-screen. */
+export function applyPosition(container: HTMLElement, pos: WidgetPosition): WidgetPosition {
+  const maxLeft = Math.max(0, window.innerWidth - container.offsetWidth)
+  const maxTop = Math.max(0, window.innerHeight - container.offsetHeight)
+  const clamped = {
+    left: Math.max(0, Math.min(pos.left, maxLeft)),
+    top: Math.max(0, Math.min(pos.top, maxTop)),
+  }
+  container.style.bottom = 'auto'
+  container.style.right = 'auto'
+  container.style.left = `${clamped.left}px`
+  container.style.top = `${clamped.top}px`
+  return clamped
+}
+
+export function makeDraggable(
+  container: HTMLElement,
+  handle: HTMLElement,
+  onDrop?: (pos: WidgetPosition) => void,
+) {
   let isDragging = false
   let hasMoved = false
   let startX = 0
@@ -13,11 +34,7 @@ export function makeDraggable(container: HTMLElement, handle: HTMLElement) {
     handle.setPointerCapture(e.pointerId)
 
     const rect = container.getBoundingClientRect()
-    container.style.transform = 'none'
-    container.style.bottom = 'auto'
-    container.style.right = 'auto'
-    container.style.left = `${rect.left}px`
-    container.style.top = `${rect.top}px`
+    applyPosition(container, { left: rect.left, top: rect.top })
 
     startX = e.clientX
     startY = e.clientY
@@ -38,16 +55,7 @@ export function makeDraggable(container: HTMLElement, handle: HTMLElement) {
     const dy = e.clientY - startY
     if (Math.abs(dx) > 3 || Math.abs(dy) > 3) hasMoved = true
 
-    let newLeft = initialLeft + dx
-    let newTop = initialTop + dy
-
-    const maxLeft = window.innerWidth - container.offsetWidth
-    const maxTop = window.innerHeight - container.offsetHeight
-    newLeft = Math.max(0, Math.min(newLeft, maxLeft))
-    newTop = Math.max(0, Math.min(newTop, maxTop))
-
-    container.style.left = `${newLeft}px`
-    container.style.top = `${newTop}px`
+    applyPosition(container, { left: initialLeft + dx, top: initialTop + dy })
   }
 
   function onPointerUp(e: PointerEvent) {
@@ -57,6 +65,8 @@ export function makeDraggable(container: HTMLElement, handle: HTMLElement) {
     handle.removeEventListener('pointermove', onPointerMove)
     handle.removeEventListener('pointerup', onPointerUp)
     handle.removeEventListener('pointercancel', onPointerUp)
+    // Persist once per drop — never per pointermove.
+    if (hasMoved) onDrop?.({ left: parseFloat(container.style.left), top: parseFloat(container.style.top) })
     setTimeout(() => { hasMoved = false }, 100)
   }
 

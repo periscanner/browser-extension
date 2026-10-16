@@ -3,7 +3,7 @@ import type { DevCheckResult, InsiderResult } from './services/api'
 import { extractTokenFromUrl, extractMintFromDom, tokenFromAxiomState } from './services/scanner'
 
 import { calculatePercentage } from './utils/format'
-import { makeDraggable } from './utils/drag'
+import { applyPosition, makeDraggable, type WidgetPosition } from './utils/drag'
 import { escapeHtml, safeImageUrl, safeHttpUrl } from './utils/escape'
 
 import { createStyles } from './ui/styles'
@@ -557,7 +557,44 @@ function processClusters(clusters: ClusterWithMembers[], amountMap: Map<string, 
   // and the panel's scan/reset lifecycle (works with the panel closed).
   initOgStrip()
 
-  const dragSystem = makeDraggable(ui.container, ui.toggleBtn)
+  // Widget position (persisted): defaults to bottom-right via CSS; a dragged
+  // position is saved once per drop and restored (clamped on-screen) on load.
+  // Open the panel toward whichever side of the viewport has more room, and
+  // cap its height to the space actually available on that side.
+  const PANEL_GAP = 12 // panel sits 64px from the container edge = 52px toggle + 12px
+  const placePanel = () => {
+    const rect = ui.container.getBoundingClientRect()
+    const openDown = rect.top + rect.height / 2 < window.innerHeight / 2
+    const openRight = rect.left + rect.width / 2 < window.innerWidth / 2
+    ui.container.classList.toggle('cs-open-down', openDown)
+    ui.container.classList.toggle('cs-open-right', openRight)
+    const room = openDown ? window.innerHeight - rect.bottom : rect.top
+    ui.panel.style.maxHeight = `${Math.max(200, Math.min(640, room - PANEL_GAP * 2))}px`
+  }
+
+  let pinnedPos: WidgetPosition | null = null
+  const dragSystem = makeDraggable(ui.container, ui.toggleBtn, (pos) => {
+    pinnedPos = pos
+    placePanel()
+    try { chrome.storage?.local.set({ psc_widget_pos: pos }) } catch { /* ignore */ }
+  })
+  try {
+    chrome.storage?.local.get(['psc_widget_pos'], (r: any) => {
+      const p = r?.psc_widget_pos
+      if (p && Number.isFinite(p.left) && Number.isFinite(p.top)) {
+        pinnedPos = p
+        applyPosition(ui.container, p)
+        placePanel()
+      }
+    })
+  } catch { /* storage unavailable */ }
+  // Keep a pinned widget on-screen when the window resizes; clamping is
+  // re-derived from the intended spot, so growing the window restores it.
+  window.addEventListener('resize', () => {
+    if (pinnedPos) applyPosition(ui.container, pinnedPos)
+    placePanel()
+  })
+  placePanel()
 
   // Burn guardrail: debounce navigation scans. Browsing fast cancels pending
   // scans, and we never scan while the panel is closed — so Helius credits are
@@ -587,6 +624,7 @@ function processClusters(clusters: ClusterWithMembers[], amountMap: Map<string, 
   function toggleWidget() {
     const isClosed = ui.panel.style.display === 'none' || ui.panel.style.display === ''
     if (isClosed) {
+      placePanel()
       ui.panel.style.display = 'flex'
       // Opening is an explicit action — scan the current token now (no debounce).
       if (ui.content.innerText.includes('Click to scan')) {

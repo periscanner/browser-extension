@@ -30,9 +30,8 @@ export function createStyles() {
       --ps-z700: #3f3f46;
 
       position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
+      right: 24px;
+      bottom: 24px;
       z-index: 999999;
       font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       touch-action: none;
@@ -90,6 +89,11 @@ export function createStyles() {
       font-size: 12px;
       line-height: 1.4;
     }
+
+    /* Flip the panel toward the roomier side of the viewport (set from
+       main.ts placePanel based on where the toggle sits). Default: up-left. */
+    #cluster-scanner-widget.cs-open-down .cs-panel { bottom: auto; top: 64px; }
+    #cluster-scanner-widget.cs-open-right .cs-panel { right: auto; left: 0; }
 
     /* ---- Header ---- */
     .cs-header {
