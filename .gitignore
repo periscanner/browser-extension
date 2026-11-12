@@ -33,3 +33,4 @@ release/
 
 # AIDesigner artifacts (local design run history)
 .aidesigner/
+*.tsbuildinfo
