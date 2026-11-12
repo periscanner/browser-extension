@@ -435,10 +435,27 @@ async function fetchLineage(urlId: string, load: () => Promise<Lineage>): Promis
   return promise
 }
 
+// Axiom writes `recentTickerSolV2` only ~5s into a direct page load, so a
+// single read right after a backend miss can find a brand-new token absent.
+// Poll briefly; give up early if the user navigated to another token.
+const FALLBACK_POLL_MS = 500
+const FALLBACK_MAX_MS = 6000
+
+async function pollAxiomState(urlId: string) {
+  const deadline = Date.now() + FALLBACK_MAX_MS
+  for (;;) {
+    const meta = tokenFromAxiomState(urlId)
+    if (meta?.name && meta.symbol) return meta
+    if (Date.now() >= deadline) return null
+    await new Promise((r) => setTimeout(r, FALLBACK_POLL_MS))
+    if (extractTokenFromUrl() !== urlId) return null // navigated away
+  }
+}
+
 // The backend resolves the token from the URL id alone (a mint, or a legacy
 // pool id). Axiom's own localStorage list is only a fallback for what the
-// backend can't resolve (token too new for DexScreener, or an older backend
-// that doesn't accept `mint`); it is read once, not polled for.
+// backend can't resolve (token too new for DexScreener, an older backend that
+// doesn't accept `mint`, or a network failure); it is polled briefly.
 async function lineageForUrlId(urlId: string): Promise<Lineage | null> {
   try {
     return await fetchLineage(urlId, async () => {
@@ -446,8 +463,8 @@ async function lineageForUrlId(urlId: string): Promise<Lineage | null> {
       return { tokens: res.tokens, mint: res.searchedToken?.mint ?? null }
     })
   } catch {
-    const meta = tokenFromAxiomState(urlId)
-    if (!meta?.name || !meta.symbol) return null
+    const meta = await pollAxiomState(urlId)
+    if (!meta) return null
     return fetchLineage(urlId, async () => {
       const res = await fetchSimilarTokens(meta.name!, meta.symbol!, meta.image)
       return { tokens: res.tokens, mint: meta.mint }
