@@ -104,5 +104,7 @@ export interface SimilarTokensResponse {
     name: string;
     symbol: string;
     imageUrl?: string;
+    /** Canonical mint; set when the request was by `mint` (the id from the page URL). */
+    mint?: string;
   };
 }

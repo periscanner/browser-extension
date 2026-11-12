@@ -8,9 +8,8 @@
 // Never throws into the page: every entry point is wrapped so a failure here
 // silently does nothing rather than breaking Axiom.
 
-import { fetchSimilarTokens } from '../services/api'
+import { fetchSimilarTokens, fetchSimilarTokensById } from '../services/api'
 import { tokenFromAxiomState, extractTokenFromUrl } from '../services/scanner'
-import type { AxiomToken } from '../services/scanner'
 import { formatCompactUsd } from '../utils/format'
 import { escapeHtml, safeImageUrl } from '../utils/escape'
 import { SimilarToken } from '../types'
@@ -32,19 +31,9 @@ const BONDED_MC = 60000
 // insertion order) rather than letting it grow for the life of the page.
 const MAX_CACHE_ENTRIES = 100
 
-// Metadata (from Axiom's own localStorage) isn't always populated the instant
-// a fresh token's DOM appears — Axiom only writes `recentTickerSolV2` once its
-// own token view finishes mounting, and on a cold hard load (extension
-// reload, or a /meme/<pool> URL opened directly) that can easily land past a
-// couple of seconds. Retry on a long backoff ladder (~20s total) rather than
-// giving up early — the strip shows a loading placeholder the whole time (see
-// renderLoading below), so running the ladder all the way out is safe. Never
-// falls back to a scan (burn guardrail).
-const METADATA_RETRY_DELAYS = [300, 800, 1500, 3000, 5000, 8000]
-
 let stripEl: HTMLElement | null = null
 let lastTokens: SimilarToken[] | null = null
-// meta.mint for lastTokens — kept alongside it so the detach-repair path in
+// the canonical mint for lastTokens — kept alongside it so the detach-repair path in
 // initOgStrip can re-render the "current row" highlight without re-fetching.
 let lastCurrentMint: string | null = null
 // True while the strip is showing the loading placeholder rather than real
@@ -52,10 +41,12 @@ let lastCurrentMint: string | null = null
 let isLoadingStrip = false
 let navDebounce: ReturnType<typeof setTimeout> | null = null
 
-// mint -> lineage, plus in-flight dedupe so scrolling through tokens (which
-// re-triggers on every SPA navigation) doesn't hammer the API.
-const lineageCache = new Map<string, SimilarToken[]>()
-const inFlight = new Map<string, Promise<SimilarToken[]>>()
+// URL id -> lineage (+ the token's canonical mint), plus in-flight dedupe so
+// scrolling through tokens (which re-triggers on every SPA navigation) doesn't
+// hammer the API.
+interface Lineage { tokens: SimilarToken[]; mint: string | null }
+const lineageCache = new Map<string, Lineage>()
+const inFlight = new Map<string, Promise<Lineage>>()
 
 function ensureStyles() {
   if (document.getElementById(STYLE_ID)) return
@@ -319,8 +310,8 @@ function feeIconHtml(feeCategory: SimilarToken['feeCategory']): string {
 }
 
 // `isCurrent` marks the row for the token already open in this tab (compared
-// by mint — meta.mint from tokenFromAxiomState — not the URL's pool id, since
-// lineage rows carry mints and the URL carries a pool id). That row gets
+// by mint (the lineage's canonical mint) — not the URL's id, which may be a pool, since
+// lineage rows carry mints). That row gets
 // accent styling and, critically, no data-nav-path attribute at all, so
 // wireItemEvents' `if (path)` guard turns its click into a no-op instead of a
 // navigation back to the page already showing (verified live: previously it
@@ -385,7 +376,7 @@ function wireItemEvents(track: HTMLElement) {
 // 26.284px (see #psc-og-strip) on every page the shell exists on, so
 // `null`/empty just empties the track down to background + border rather
 // than hiding anything.
-// `currentMint` is meta.mint for the token currently in view (see itemHtml)
+// `currentMint` is the canonical mint of the token currently in view (see itemHtml)
 // — pass null when there's nothing to compare against.
 function renderStrip(tokens: SimilarToken[] | null, currentMint: string | null) {
   isLoadingStrip = false
@@ -404,11 +395,9 @@ function renderStrip(tokens: SimilarToken[] | null, currentMint: string | null) 
   wireItemEvents(track)
 }
 
-// Shown the moment a token is known (pool id resolved from the URL) but
-// metadata/lineage haven't come back yet. The metadata ladder alone can run
-// ~20s on a cold hard load (METADATA_RETRY_DELAYS above) — without this, the
-// strip just sits invisible that whole time and a working feature reads as a
-// broken one. Same fixed-height bar as real content (26.284px, see
+// Shown the moment a token id is read from the URL but its lineage hasn't
+// come back yet — without it the strip sits invisible during the fetch and a
+// working feature reads as a broken one. Same fixed-height bar as real content (26.284px, see
 // #psc-og-strip above) so nothing shifts when rows eventually replace the
 // placeholder — only the track's contents swap, and it's deliberately
 // static (no pulse/animation) so it doesn't flash or draw the eye.
@@ -426,70 +415,71 @@ function renderLoading() {
   `
 }
 
-async function resolveMetadata(poolId: string): Promise<AxiomToken | null> {
-  const immediate = tokenFromAxiomState(poolId)
-  if (immediate) return immediate
-  for (const delay of METADATA_RETRY_DELAYS) {
-    await new Promise((resolve) => setTimeout(resolve, delay))
-    if (extractTokenFromUrl() !== poolId) return null // navigated away mid-wait — abort the ladder
-    const hit = tokenFromAxiomState(poolId)
-    if (hit) return hit
-  }
-  return null // ladder exhausted — give up silently, never falls back to a scan
-}
-
-async function fetchLineage(mint: string, name: string, symbol: string, imageUrl?: string): Promise<SimilarToken[]> {
-  const cached = lineageCache.get(mint)
+async function fetchLineage(urlId: string, load: () => Promise<Lineage>): Promise<Lineage> {
+  const cached = lineageCache.get(urlId)
   if (cached) return cached
-  const pending = inFlight.get(mint)
+  const pending = inFlight.get(urlId)
   if (pending) return pending
 
-  const promise = fetchSimilarTokens(name, symbol, imageUrl)
-    .then((res) => {
-      if (lineageCache.size >= MAX_CACHE_ENTRIES && !lineageCache.has(mint)) {
+  const promise = load()
+    .then((lineage) => {
+      if (lineageCache.size >= MAX_CACHE_ENTRIES && !lineageCache.has(urlId)) {
         const oldestKey = lineageCache.keys().next().value
         if (oldestKey !== undefined) lineageCache.delete(oldestKey)
       }
-      lineageCache.set(mint, res.tokens)
-      return res.tokens
+      lineageCache.set(urlId, lineage)
+      return lineage
     })
-    .finally(() => { inFlight.delete(mint) })
-  inFlight.set(mint, promise)
+    .finally(() => { inFlight.delete(urlId) })
+  inFlight.set(urlId, promise)
   return promise
+}
+
+// The backend resolves the token from the URL id alone (a mint, or a legacy
+// pool id). Axiom's own localStorage list is only a fallback for what the
+// backend can't resolve (token too new for DexScreener, or an older backend
+// that doesn't accept `mint`); it is read once, not polled for.
+async function lineageForUrlId(urlId: string): Promise<Lineage | null> {
+  try {
+    return await fetchLineage(urlId, async () => {
+      const res = await fetchSimilarTokensById(urlId)
+      return { tokens: res.tokens, mint: res.searchedToken?.mint ?? null }
+    })
+  } catch {
+    const meta = tokenFromAxiomState(urlId)
+    if (!meta?.name || !meta.symbol) return null
+    return fetchLineage(urlId, async () => {
+      const res = await fetchSimilarTokens(meta.name!, meta.symbol!, meta.image)
+      return { tokens: res.tokens, mint: meta.mint }
+    })
+  }
 }
 
 async function loadForCurrentToken() {
   try {
-    const poolId = extractTokenFromUrl()
+    const urlId = extractTokenFromUrl()
     // Clear the previous token's lineage immediately — showing it against the
     // new token in view would be actively misleading.
     lastTokens = null
     lastCurrentMint = null
-    if (!poolId) {
+    if (!urlId) {
       renderStrip(null, null)
       return
     }
-    // Switch straight to the loading placeholder instead of leaving the
-    // strip invisible while resolveMetadata's ladder runs (up to ~20s).
     renderLoading()
 
-    const metaStart = Date.now()
-    const meta = await resolveMetadata(poolId)
-    console.log('[Cluster Scanner] OG strip metadata resolved in', Date.now() - metaStart, 'ms', meta ? '(hit)' : '(miss)')
-    if (extractTokenFromUrl() !== poolId) return // navigated away mid-resolve
-    if (!meta) {
+    const start = Date.now()
+    const lineage = await lineageForUrlId(urlId).catch(() => null)
+    console.log('[Cluster Scanner] OG strip lineage resolved in', Date.now() - start, 'ms', lineage ? `(${lineage.tokens.length} rows)` : '(miss)')
+    if (extractTokenFromUrl() !== urlId) return // navigated away mid-fetch
+
+    if (!lineage) {
       renderStrip(null, null)
       return
     }
-
-    const lineageStart = Date.now()
-    const tokens = await fetchLineage(meta.mint, meta.name || '', meta.symbol || '', meta.image)
-    console.log('[Cluster Scanner] OG strip fetchSimilarTokens resolved in', Date.now() - lineageStart, 'ms', `(${tokens.length} rows)`)
-    if (extractTokenFromUrl() !== poolId) return // navigated away mid-fetch
-
-    lastTokens = tokens
-    lastCurrentMint = meta.mint
-    renderStrip(tokens, meta.mint)
+    lastTokens = lineage.tokens
+    lastCurrentMint = lineage.mint
+    renderStrip(lineage.tokens, lineage.mint)
   } catch {
     // Silent failure — never break Axiom.
   }

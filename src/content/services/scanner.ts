@@ -13,14 +13,13 @@ export interface AxiomToken {
 export const AXIOM_RECENT_TOKENS_KEY = 'recentTickerSolV2'
 
 /**
- * Resolve the real mint (+ metadata) instantly from Axiom's own app state.
- * Axiom keeps a `recentTickerSolV2` localStorage array of viewed tokens, each
- * pairing the pool id (`pairAddress`) with the mint (`tokenAddress`) and written
- * on every token view (within ~100 ms of an SPA navigation).
- * Axiom's token URL carries either one: legacy `/meme/<pool>` paths hold the
- * pool id, current `/token/<mint>` paths hold the mint, so match on both.
- * Matching by the URL id makes this synchronous and never stale — no
- * iframe wait, no DexScreener, no "could not find account" on token entry.
+ * Fallback token lookup from Axiom's own app state: its `recentTickerSolV2`
+ * localStorage array of viewed tokens, each pairing the pool id (`pairAddress`)
+ * with the mint (`tokenAddress`) plus name/ticker/image. Axiom's token URL
+ * carries either id (legacy `/meme/<pool>`, current `/token/<mint>`), so match
+ * on both. This is a private Axiom detail that has already been renamed once
+ * (silently breaking the strip), so the OG strip resolves from the URL via the
+ * backend first and only falls back to this when that fails.
  */
 export function tokenFromAxiomState(urlId: string): AxiomToken | null {
   try {

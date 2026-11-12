@@ -86,7 +86,8 @@ Against `…workers.dev/api/v1` (prod) — see `cloudflare-workers/CONTEXT.md` f
 ## Refreshing Axiom fixtures
 
 `pnpm test` (vitest + jsdom) guards what the OG strip needs from axiom.trade: the `.platform-app-shell`
-anchor and the recent-tokens localStorage list read by `tokenFromAxiomState` (key
+anchor (the strip resolves its token from the URL id via the backend and needs no Axiom storage), plus the
+recent-tokens localStorage list read by `tokenFromAxiomState` as a fallback only (key
 `recentTickerSolV2` today; Axiom silently renamed it from `recentTickerSol` once, which left the strip
 empty while the old tests stayed green). Fixtures in `tests/fixtures/` are dated captures of a live
 `/token/<mint>` page. When Axiom changes and the strip breaks, open a token page in a fresh tab and

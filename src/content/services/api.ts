@@ -158,10 +158,20 @@ export async function fetchDevCheck(mint: string): Promise<DevCheckResult | null
 }
 
 export async function fetchSimilarTokens(name: string, symbol: string, imageUrl?: string): Promise<SimilarTokensResponse> {
+  return postSimilarTokens({ name, symbol, imageUrl })
+}
+
+// By the id in the page URL (a mint, or a legacy /meme/<pool> id): the backend
+// resolves name/symbol/image itself, so no page-scraped metadata is needed.
+export async function fetchSimilarTokensById(mint: string): Promise<SimilarTokensResponse> {
+  return postSimilarTokens({ mint })
+}
+
+async function postSimilarTokens(body: object): Promise<SimilarTokensResponse> {
   const response = await fetch(`${API_URL}/extension/similar-tokens`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, symbol, imageUrl })
+    body: JSON.stringify(body)
   })
 
   if (!response.ok) {
