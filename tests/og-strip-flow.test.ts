@@ -23,6 +23,8 @@ const fresh = (base: any, tag: string) => {
   return e
 }
 
+const OTHER_MINT = 'So11111111111111111111111111111111111111112'
+
 const row = (mint: string, symbol: string, axiomLink: string) => ({
   chainId: 'solana', dexId: 'pumpswap', pairAddress: 'pool-' + symbol,
   baseToken: { address: mint, name: symbol, symbol },
@@ -33,7 +35,7 @@ const row = (mint: string, symbol: string, axiomLink: string) => ({
 // Stand-in for scanner-api's /extension/similar-tokens, keyed like the real one:
 // `{ mint }` takes a mint or a pool id; `{ name, symbol }` is the legacy form.
 const lineage = (e: any) => (e.tokenName === 'Bonk' || e.twoRows)
-  ? [row(e.tokenAddress, e.tokenName, `https://axiom.trade/meme/${e.pairAddress}?chain=sol`), row('OtherMint1111111111111111111111111111111111', 'BONK2', 'https://axiom.trade/meme/pool2?chain=sol')]
+  ? [row(e.tokenAddress, e.tokenName, `https://axiom.trade/meme/${e.pairAddress}?chain=sol`), row(OTHER_MINT, 'BONK2', 'https://axiom.trade/meme/pool2?chain=sol')]
   : [row(e.tokenAddress, e.tokenName === 'PhantomMk1' ? 'Jewbots' : e.tokenName, `https://axiom.trade/meme/${e.pairAddress}?chain=sol`)]
 let backendResolvesMints = true
 const respond = (body: any) => {
@@ -68,7 +70,9 @@ describe('OG strip with no Axiom localStorage', () => {
 
     await vi.waitFor(() => expect(items()).toHaveLength(2), { timeout: 3000 })
     expect(items()[0].classList.contains('psc-og-item-current')).toBe(true) // the token in view
-    expect(items()[1].getAttribute('data-nav-path')).toBeTruthy()           // others are clickable
+    // Others are clickable, to /token/<mint> built from the row's mint — even
+    // though this (older-API) stand-in still returns /meme/<pool> axiomLinks.
+    expect(items()[1].getAttribute('data-nav-path')).toBe(`/token/${OTHER_MINT}?chain=sol`)
 
     goto(`/token/${jewbots.tokenAddress}?chain=sol`)
     document.body.appendChild(document.createElement('i')) // Axiom re-render -> observer fires

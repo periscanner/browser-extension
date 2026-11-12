@@ -269,22 +269,16 @@ function formatOgDate(pairCreatedAt?: number): string {
 // escapeHtml/safeImageUrl live in ../utils/escape (shared with render.ts,
 // same threat model, same innerHTML sink) — do not redefine them here.
 
-// Strip the origin off axiomLink (preserving path + query, e.g. ?chain=sol),
-// falling back to the canonical /meme/<mint> path if it's ever malformed —
-// or if what's left isn't a same-origin relative path (must start with a
-// single '/', not protocol-relative '//'). This value is later handed to
-// window.location.href by the MAIN-world bridge (mainworld.ts), so anything
-// looser here is an open-redirect / javascript: sink.
-function navPathFor(token: SimilarToken): string {
-  const fallback = `/meme/${token.baseToken.address}?chain=sol`
-  try {
-    const u = new URL(token.axiomLink)
-    const path = u.pathname + u.search
-    if (path.startsWith('/') && !path.startsWith('//')) return path
-    return fallback
-  } catch {
-    return fallback
-  }
+// Built from the row's mint, not the backend's axiomLink, so it does not
+// depend on the link shape of whichever API version is deployed. Axiom's
+// current token URL is /token/<mint>?chain=sol. The mint comes from the API
+// (attacker-influenced), so it is only used when it is a plain base58 id;
+// the result is a same-origin relative path, since it is later handed to
+// window.location.href by the MAIN-world bridge (mainworld.ts).
+const BASE58_MINT = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/
+function navPathFor(token: SimilarToken): string | null {
+  const mint = token.baseToken.address
+  return BASE58_MINT.test(mint) ? `/token/${mint}?chain=sol` : null
 }
 
 // pump.fun creator-fee indicator. `feeCategory` arrives from the API — same
@@ -327,7 +321,8 @@ function itemHtml(token: SimilarToken, isCurrent: boolean): string {
   const avatar = imageUrl
     ? `<img class="psc-og-avatar" src="${escapeHtml(imageUrl)}" alt="" data-fallback="${fallbackLetter}" />`
     : `<div class="psc-og-avatar psc-og-glyph">${fallbackLetter}</div>`
-  const navAttr = isCurrent ? '' : ` data-nav-path="${escapeHtml(navPathFor(token))}"`
+  const navPath = isCurrent ? null : navPathFor(token)
+  const navAttr = navPath ? ` data-nav-path="${escapeHtml(navPath)}"` : ''
   const itemClass = isCurrent ? 'psc-og-item psc-og-item-current' : 'psc-og-item'
   const titleSuffix = isCurrent ? ' (current)' : ''
 
