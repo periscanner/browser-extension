@@ -82,3 +82,13 @@ Against `…workers.dev/api/v1` (prod) — see `cloudflare-workers/CONTEXT.md` f
 - **Scan ≠ deep scan** — read cached/known data vs ingest+recluster unknown holders.
 - Don't treat the **popup** or `HelloWorld.vue` as live product surface — they're unfinished
   scaffolding; the overlay content script is the extension.
+
+## Refreshing Axiom fixtures
+
+`pnpm test` (vitest + jsdom) guards what the OG strip needs from axiom.trade: the `.platform-app-shell`
+anchor and the `recentTickerSol` localStorage shape read by `tokenFromAxiomState`. Fixtures in
+`tests/fixtures/` are dated captures of a live `/token/<mint>` page. When Axiom changes and the strip
+breaks, open a token page in a fresh tab, copy `localStorage.recentTickerSol` (keep one public token
+entry; drop anything user- or wallet-specific) and a trimmed `.platform-app-shell` ancestry (anchor
+classes only, no user UI), save both as `axiom-*-<YYYY-MM-DD>.*`, update the filenames in
+`tests/axiom-contract.test.ts`, and fix the code until the tests pass.

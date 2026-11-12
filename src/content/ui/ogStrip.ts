@@ -233,7 +233,7 @@ function ensureStyles() {
 // Idempotent: reuses the existing node if it's still attached under the
 // shell, otherwise (re)creates it — Axiom's Next.js App Router re-renders and
 // can wipe injected nodes, so this must never create duplicates.
-function ensureInjected(): HTMLElement | null {
+export function ensureInjected(): HTMLElement | null {
   const existing = document.getElementById(STRIP_ID) as HTMLElement | null
   if (existing && existing.isConnected) {
     stripEl = existing
