@@ -1,6 +1,7 @@
-import { fetchScanResults, fetchClustersByWallets, submitIngestJob, pollIngestJob, fetchSimilarTokens, fetchDevCheck, fetchInsiders } from './services/api'
+import { fetchScanResults, fetchClustersByWallets, submitIngestJob, pollIngestJob, fetchDevCheck, fetchInsiders } from './services/api'
 import type { DevCheckResult, InsiderResult } from './services/api'
 import { extractTokenFromUrl, extractMintFromDom, tokenFromAxiomState } from './services/scanner'
+import { lookupByUrlId } from './services/tokenLookup'
 
 import { calculatePercentage } from './utils/format'
 import { applyPosition, makeDraggable, type WidgetPosition } from './utils/drag'
@@ -43,11 +44,11 @@ let similarShowAll = false
 let lastRelevantClusters: any[] = []
 let lastAmountMap: Map<string, number> = new Map()
 
-// Fire the similar-tokens lookup once per scan, as soon as metadata is known
-// (from Axiom state instantly, or DexScreener) — so the Created chip + Similar
-// tab populate early, in parallel with the cluster/deep-scan work.
+// Fire the similar-tokens lookup once per scan, straight from the URL id (the
+// same lookup the OG strip uses) — so the Created chip + Similar tab populate
+// early, in parallel with the cluster/deep-scan work.
 function requestSimilar(ui: any) {
-  if (!tokenMetadata || similarRequested) return
+  if (similarRequested) return
   similarRequested = true
   void fetchAndRenderSimilarTokens(ui, true)
 }
@@ -184,23 +185,26 @@ function renderSimilar(ui: any) {
 }
 
 async function fetchAndRenderSimilarTokens(ui: any, background = false) {
-  if (!tokenMetadata) {
-    if (!background) ui.similarContent.innerHTML = `<div class="cs-error">No token metadata available. Scan a token first.</div>`
+  const urlId = extractTokenFromUrl()
+  if (!urlId) {
+    if (!background) ui.similarContent.innerHTML = `<div class="cs-error">No token found in the URL. Open a Pair or Token page.</div>`
     return
   }
 
-  const mintAtCall = currentMint
+  const genAtCall = scanGen
   if (!background) ui.similarContent.innerHTML = `<div class="cs-loading">Searching for similar tokens...</div>`
 
   try {
-    const response = await fetchSimilarTokens(
-      tokenMetadata.name,
-      tokenMetadata.symbol,
-      tokenMetadata.imageUrl
-    )
-    if (currentMint !== mintAtCall) return // navigated away mid-fetch
+    const lineage = await lookupByUrlId(urlId)
+    if (scanGen !== genAtCall || extractTokenFromUrl() !== urlId) return // navigated away mid-fetch
+    if (!lineage) throw new Error('Could not resolve this token yet — try again in a moment.')
 
-    similarTokensData = response.tokens
+    // Header metadata for tokens DexScreener hasn't indexed yet.
+    if (!tokenMetadata && lineage.name && lineage.symbol) {
+      tokenMetadata = { name: lineage.name, symbol: lineage.symbol, imageUrl: lineage.imageUrl }
+    }
+
+    similarTokensData = lineage.tokens
     similarShowAll = false // fresh data for a (possibly new) token — default back to filtered
 
     // Find oldest bonded token (market cap >= 60k)
@@ -299,20 +303,15 @@ async function runScan(ui: any, deepScan = false) {
   renderTop(ui)
   renderAlert(ui)
 
-  // --- Resolve the mint instantly from Axiom state; start the scan ASAP -------
-  // Axiom's `recentTickerSolV2` localStorage maps the URL pool id → the real mint
-  // (+ name/ticker/image), so we get the canonical mint synchronously with zero
-  // network and zero staleness. If it's not in state yet, fall back to the pool
-  // id (the worker resolves it). The scan + DexScreener metadata + dev check all
-  // run concurrently rather than in a sequential chain.
+  // --- Start the scan ASAP, from the URL id --------------------------------------
+  // /token/<mint> carries the mint; a legacy /meme/<pool> id is resolved by the
+  // worker. Axiom's private localStorage is only a retry fallback below. The
+  // scan + DexScreener metadata + similar lookup + dev check all run
+  // concurrently rather than in a sequential chain.
   let mintAddress = addressFromUrl
-  const fromState = tokenFromAxiomState(addressFromUrl)
-  if (fromState) {
-    mintAddress = fromState.mint
-    tokenMetadata = { name: fromState.name || '', symbol: fromState.symbol || '', imageUrl: fromState.image }
-  }
   currentMint = mintAddress
   renderTop(ui)
+  requestSimilar(ui) // lineage + token metadata by URL id, in parallel with the scan
 
   const scanPromise = fetchScanResults(mintAddress)
 
@@ -329,7 +328,6 @@ async function runScan(ui: any, deepScan = false) {
         tokenMetadata = { name: pair.baseToken.name, symbol: pair.baseToken.symbol, imageUrl: pair.info?.imageUrl }
         currentMarketCap = pair.marketCap || 0
         renderTop(ui)
-        requestSimilar(ui) // covers tokens not in Axiom state
       }
     } catch { /* metadata is best-effort */ }
   })()
@@ -694,7 +692,7 @@ function processClusters(clusters: ClusterWithMembers[], amountMap: Map<string, 
     if (similarTokensData !== null) {
       renderSimilar(ui)
       renderTop(ui)
-    } else if (tokenMetadata) {
+    } else {
       // Not loaded yet (or in flight) — show a foreground load.
       if (!similarRequested) fetchAndRenderSimilarTokens(ui)
       else ui.similarContent.innerHTML = `<div class="cs-loading">Searching for similar tokens…</div>`

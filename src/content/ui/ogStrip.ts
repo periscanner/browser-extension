@@ -8,8 +8,8 @@
 // Never throws into the page: every entry point is wrapped so a failure here
 // silently does nothing rather than breaking Axiom.
 
-import { fetchSimilarTokens, fetchSimilarTokensById } from '../services/api'
-import { tokenFromAxiomState, extractTokenFromUrl } from '../services/scanner'
+import { extractTokenFromUrl } from '../services/scanner'
+import { lookupByUrlId } from '../services/tokenLookup'
 import { formatCompactUsd } from '../utils/format'
 import { escapeHtml, safeImageUrl } from '../utils/escape'
 import { SimilarToken } from '../types'
@@ -26,11 +26,6 @@ const MIN_MATCH_SCORE = 2
 const MAX_ROWS = 5
 const BONDED_MC = 60000
 
-// lineageCache is never explicitly cleared and the strip auto-loads on every
-// SPA navigation, so cap it and evict the oldest entry (Map preserves
-// insertion order) rather than letting it grow for the life of the page.
-const MAX_CACHE_ENTRIES = 100
-
 let stripEl: HTMLElement | null = null
 let lastTokens: SimilarToken[] | null = null
 // the canonical mint for lastTokens — kept alongside it so the detach-repair path in
@@ -40,13 +35,6 @@ let lastCurrentMint: string | null = null
 // content — lets the detach-repair path restore the right one of the two.
 let isLoadingStrip = false
 let navDebounce: ReturnType<typeof setTimeout> | null = null
-
-// URL id -> lineage (+ the token's canonical mint), plus in-flight dedupe so
-// scrolling through tokens (which re-triggers on every SPA navigation) doesn't
-// hammer the API.
-interface Lineage { tokens: SimilarToken[]; mint: string | null }
-const lineageCache = new Map<string, Lineage>()
-const inFlight = new Map<string, Promise<Lineage>>()
 
 function ensureStyles() {
   if (document.getElementById(STYLE_ID)) return
@@ -409,63 +397,6 @@ function renderLoading() {
   `
 }
 
-async function fetchLineage(urlId: string, load: () => Promise<Lineage>): Promise<Lineage> {
-  const cached = lineageCache.get(urlId)
-  if (cached) return cached
-  const pending = inFlight.get(urlId)
-  if (pending) return pending
-
-  const promise = load()
-    .then((lineage) => {
-      if (lineageCache.size >= MAX_CACHE_ENTRIES && !lineageCache.has(urlId)) {
-        const oldestKey = lineageCache.keys().next().value
-        if (oldestKey !== undefined) lineageCache.delete(oldestKey)
-      }
-      lineageCache.set(urlId, lineage)
-      return lineage
-    })
-    .finally(() => { inFlight.delete(urlId) })
-  inFlight.set(urlId, promise)
-  return promise
-}
-
-// Axiom writes `recentTickerSolV2` only ~5s into a direct page load, so a
-// single read right after a backend miss can find a brand-new token absent.
-// Poll briefly; give up early if the user navigated to another token.
-const FALLBACK_POLL_MS = 500
-const FALLBACK_MAX_MS = 6000
-
-async function pollAxiomState(urlId: string) {
-  const deadline = Date.now() + FALLBACK_MAX_MS
-  for (;;) {
-    const meta = tokenFromAxiomState(urlId)
-    if (meta?.name && meta.symbol) return meta
-    if (Date.now() >= deadline) return null
-    await new Promise((r) => setTimeout(r, FALLBACK_POLL_MS))
-    if (extractTokenFromUrl() !== urlId) return null // navigated away
-  }
-}
-
-// The backend resolves the token from the URL id alone (a mint, or a legacy
-// pool id). Axiom's own localStorage list is only a fallback for what the
-// backend can't resolve (token too new for DexScreener, an older backend that
-// doesn't accept `mint`, or a network failure); it is polled briefly.
-async function lineageForUrlId(urlId: string): Promise<Lineage | null> {
-  try {
-    return await fetchLineage(urlId, async () => {
-      const res = await fetchSimilarTokensById(urlId)
-      return { tokens: res.tokens, mint: res.searchedToken?.mint ?? null }
-    })
-  } catch {
-    const meta = await pollAxiomState(urlId)
-    if (!meta) return null
-    return fetchLineage(urlId, async () => {
-      const res = await fetchSimilarTokens(meta.name!, meta.symbol!, meta.image)
-      return { tokens: res.tokens, mint: meta.mint }
-    })
-  }
-}
-
 async function loadForCurrentToken() {
   try {
     const urlId = extractTokenFromUrl()
@@ -480,7 +411,7 @@ async function loadForCurrentToken() {
     renderLoading()
 
     const start = Date.now()
-    const lineage = await lineageForUrlId(urlId).catch(() => null)
+    const lineage = await lookupByUrlId(urlId).catch(() => null)
     console.log('[Cluster Scanner] OG strip lineage resolved in', Date.now() - start, 'ms', lineage ? `(${lineage.tokens.length} rows)` : '(miss)')
     if (extractTokenFromUrl() !== urlId) return // navigated away mid-fetch
 
