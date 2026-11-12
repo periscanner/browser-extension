@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "types": ["vite/client", "chrome", "node"] },
+  "files": ["src/vue-shim.d.ts"],
+  "include": ["src/**/*.ts", "tests/**/*.ts", "*.ts"]
+}
