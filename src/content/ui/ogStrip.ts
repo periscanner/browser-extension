@@ -348,8 +348,7 @@ function itemHtml(token: SimilarToken, isCurrent: boolean): string {
 }
 
 // Dispatched on `window` for the MAIN-world bridge (src/content/mainworld.ts)
-// to pick up — content scripts run in an isolated world and can't reach
-// window.next directly.
+// to pick up (it does the navigation in the page's own world).
 function navigateTo(path: string) {
   window.dispatchEvent(new CustomEvent(NAV_EVENT, { detail: { path } }))
 }
