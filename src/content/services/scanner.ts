@@ -10,17 +10,19 @@ export interface AxiomToken {
 /**
  * Resolve the real mint (+ metadata) instantly from Axiom's own app state.
  * Axiom keeps a `recentTickerSol` localStorage array of viewed tokens, each
- * pairing the URL's pool id (`pairAddress`) with the mint (`tokenAddress`).
- * Matching by the URL's pool id makes this synchronous and never stale — no
+ * pairing the pool id (`pairAddress`) with the mint (`tokenAddress`).
+ * Axiom's token URL carries either one: legacy `/meme/<pool>` paths hold the
+ * pool id, current `/token/<mint>` paths hold the mint, so match on both.
+ * Matching by the URL id makes this synchronous and never stale — no
  * iframe wait, no DexScreener, no "could not find account" on token entry.
  */
-export function tokenFromAxiomState(poolId: string): AxiomToken | null {
+export function tokenFromAxiomState(urlId: string): AxiomToken | null {
   try {
     const raw = localStorage.getItem('recentTickerSol')
     if (!raw) return null
     const list = JSON.parse(raw)
     if (!Array.isArray(list)) return null
-    const hit = list.find((e: any) => e && e.pairAddress === poolId && e.tokenAddress)
+    const hit = list.find((e: any) => e && e.tokenAddress && (e.pairAddress === urlId || e.tokenAddress === urlId))
     if (!hit) return null
     return {
       mint: hit.tokenAddress,
