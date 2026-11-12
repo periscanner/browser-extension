@@ -31,7 +31,7 @@ risk, insider transfers, dev-rug signals, and copycat tokens.
 
 - **Mint** — the canonical SPL token address. **Pool id / pair address** — the Axiom DEX pool in the
   URL, which may *not* equal the mint for brand-new tokens. The scanner resolves mint from URL → Axiom
-  `recentTickerSol` state → iframe param → DOM links, with retries for not-yet-indexed tokens
+  `recentTickerSolV2` state → iframe param → DOM links, with retries for not-yet-indexed tokens
   (`src/content/services/scanner.ts`, `extractTokenAddress.ts`).
 
 ### On-chain concepts it displays
@@ -86,9 +86,13 @@ Against `…workers.dev/api/v1` (prod) — see `cloudflare-workers/CONTEXT.md` f
 ## Refreshing Axiom fixtures
 
 `pnpm test` (vitest + jsdom) guards what the OG strip needs from axiom.trade: the `.platform-app-shell`
-anchor and the `recentTickerSol` localStorage shape read by `tokenFromAxiomState`. Fixtures in
-`tests/fixtures/` are dated captures of a live `/token/<mint>` page. When Axiom changes and the strip
-breaks, open a token page in a fresh tab, copy `localStorage.recentTickerSol` (keep one public token
-entry; drop anything user- or wallet-specific) and a trimmed `.platform-app-shell` ancestry (anchor
-classes only, no user UI), save both as `axiom-*-<YYYY-MM-DD>.*`, update the filenames in
-`tests/axiom-contract.test.ts`, and fix the code until the tests pass.
+anchor and the recent-tokens localStorage list read by `tokenFromAxiomState` (key
+`recentTickerSolV2` today; Axiom silently renamed it from `recentTickerSol` once, which left the strip
+empty while the old tests stayed green). Fixtures in `tests/fixtures/` are dated captures of a live
+`/token/<mint>` page. When Axiom changes and the strip breaks, open a token page in a fresh tab and
+dump the localStorage keys that start with `recentTickerSol` (Axiom's current one is the one whose
+newest `viewTimestamp` is recent; keep one or two public token entries, drop anything user- or
+wallet-specific) as `{ "<key>": [entries] }` into `axiom-localStorage-<YYYY-MM-DD>.json`, add a trimmed
+`.platform-app-shell` ancestry (anchor classes only, no user UI) as `axiom-token-page-<YYYY-MM-DD>.html`,
+update the filenames in `tests/axiom-contract.test.ts` and `tests/og-strip-flow.test.ts`, and fix the
+code (`AXIOM_RECENT_TOKENS_KEY` in `scanner.ts`) until the tests pass.

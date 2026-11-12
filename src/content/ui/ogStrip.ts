@@ -33,7 +33,7 @@ const BONDED_MC = 60000
 const MAX_CACHE_ENTRIES = 100
 
 // Metadata (from Axiom's own localStorage) isn't always populated the instant
-// a fresh token's DOM appears — Axiom only writes `recentTickerSol` once its
+// a fresh token's DOM appears — Axiom only writes `recentTickerSolV2` once its
 // own token view finishes mounting, and on a cold hard load (extension
 // reload, or a /meme/<pool> URL opened directly) that can easily land past a
 // couple of seconds. Retry on a long backoff ladder (~20s total) rather than

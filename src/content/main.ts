@@ -300,7 +300,7 @@ async function runScan(ui: any, deepScan = false) {
   renderAlert(ui)
 
   // --- Resolve the mint instantly from Axiom state; start the scan ASAP -------
-  // Axiom's `recentTickerSol` localStorage maps the URL pool id → the real mint
+  // Axiom's `recentTickerSolV2` localStorage maps the URL pool id → the real mint
   // (+ name/ticker/image), so we get the canonical mint synchronously with zero
   // network and zero staleness. If it's not in state yet, fall back to the pool
   // id (the worker resolves it). The scan + DexScreener metadata + dev check all

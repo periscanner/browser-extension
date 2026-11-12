@@ -7,10 +7,16 @@ export interface AxiomToken {
   image?: string
 }
 
+// Axiom's own localStorage list of recently viewed Solana tokens. Axiom renamed
+// the key from `recentTickerSol` to `recentTickerSolV2` (the old key has had no
+// writes since 2026-11-04); reading the old one meant every lookup missed.
+export const AXIOM_RECENT_TOKENS_KEY = 'recentTickerSolV2'
+
 /**
  * Resolve the real mint (+ metadata) instantly from Axiom's own app state.
- * Axiom keeps a `recentTickerSol` localStorage array of viewed tokens, each
- * pairing the pool id (`pairAddress`) with the mint (`tokenAddress`).
+ * Axiom keeps a `recentTickerSolV2` localStorage array of viewed tokens, each
+ * pairing the pool id (`pairAddress`) with the mint (`tokenAddress`) and written
+ * on every token view (within ~100 ms of an SPA navigation).
  * Axiom's token URL carries either one: legacy `/meme/<pool>` paths hold the
  * pool id, current `/token/<mint>` paths hold the mint, so match on both.
  * Matching by the URL id makes this synchronous and never stale — no
@@ -18,7 +24,7 @@ export interface AxiomToken {
  */
 export function tokenFromAxiomState(urlId: string): AxiomToken | null {
   try {
-    const raw = localStorage.getItem('recentTickerSol')
+    const raw = localStorage.getItem(AXIOM_RECENT_TOKENS_KEY)
     if (!raw) return null
     const list = JSON.parse(raw)
     if (!Array.isArray(list)) return null

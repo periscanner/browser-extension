@@ -1,0 +1,20 @@
+{
+  "recentTickerSolV2": [
+    {
+      "pairAddress": "31p1hptjhFo6ZD8oBqkfutNXQKGGPyi7YcEAfsyKW777",
+      "tokenAddress": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+      "tokenTicker": "Bonk",
+      "tokenName": "Bonk",
+      "tokenImage": "https://axiom-sol-v2.sfo3.cdn.digitaloceanspaces.com/DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263.webp",
+      "viewTimestamp": "2026-11-12T02:53:24.385Z"
+    },
+    {
+      "pairAddress": "GKy9vjRFEk21e9GjxQh53Qe8v9aUW7oK4Y2Fa9Fc5g1T",
+      "tokenAddress": "2ipXjbKqQL8RLufxitX3WdPnw6JCVWKHfH8iqAWtpump",
+      "tokenTicker": "Jewbots",
+      "tokenName": "PhantomMk1",
+      "tokenImage": "https://axiom-sol-v2.sfo3.cdn.digitaloceanspaces.com/2ipXjbKqQL8RLufxitX3WdPnw6JCVWKHfH8iqAWtpump.webp",
+      "viewTimestamp": "2026-11-12T02:51:13.124Z"
+    }
+  ]
+}
