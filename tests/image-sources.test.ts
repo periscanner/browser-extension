@@ -36,9 +36,16 @@ describe('imageCandidates', () => {
   })
 
   it('keeps a healthy CDN url first and still adds the fallbacks', () => {
-    const cdn = 'https://axiomtrading-v2.axiom-cdn.io/AKDjR5f6sisQkJyhYdGHfqPtdXu9upZc4GZuH9GJpump.webp'
+    const cdn = 'https://axiomtrading-v2.axiom-cdn.io/' + MINT + '.webp'
     const out = imageCandidates(cdn, MINT)
     expect(out).toEqual([cdn, PUMP])
+  })
+
+  it("drops a mint-keyed image URL that belongs to a different mint", () => {
+    const other = 'https://axiom-sol-v2.sfo3.cdn.digitaloceanspaces.com/7ZjNbCoy8xnXgQxW6NQH1LV9pjVPeS1FZnPbCqEYpump.webp'
+    expect(imageCandidates(other, MINT)).toEqual([PUMP])
+    expect(imageCandidates(other, '7ge9CUEtZ4gQtMf9eiPf5Mk9Gv8j8wCds3m49tUVcHa1')).toEqual([]) // non-pump mint: glyph, not a stranger's avatar
+    expect(imageCandidates(other, undefined)).toEqual([other]) // no mint to compare against: unchanged
   })
 
   it('keeps a non-public IPFS host (e.g. a Pinata dedicated gateway) first, with CID fallbacks', () => {
