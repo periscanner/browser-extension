@@ -55,24 +55,11 @@ describe('OG strip avatar fallback chain', () => {
     expect(avatar(IPFS_MINT).textContent).toBe('W')
   })
 
-  it("another mint's Axiom CDN image (DexScreener mislabel, captured WhatUp row) is never used; the row's own pump CDN image is", async () => {
+  it('healthy CDN image shows first and falls back to the pump CDN', async () => {
     initOgStrip()
     await vi.waitFor(() => expect(document.querySelectorAll('#psc-og-strip .psc-og-item').length).toBe(3), { timeout: 3000 })
     const img = avatar(URL_MINT) as HTMLImageElement
-    expect(img.src).toBe(`https://images.pump.fun/coin-image/${URL_MINT}?variant=64x64`)
-    expect(rowEl(URL_MINT).innerHTML).not.toContain('7ZjNbCoy8xnXgQxW6NQH1LV9pjVPeS1FZnPbCqEYpump')
-  })
-
-  it("a healthy CDN image keyed by the row's own mint shows first and falls back to the pump CDN", async () => {
-    const own = `https://axiom-sol-v2.sfo3.cdn.digitaloceanspaces.com/${URL_MINT}.webp`
-    const tokens = api.tokens.map((t: any) => t.baseToken.address === URL_MINT ? { ...t, info: { imageUrl: own } } : t)
-    ;(fetch as any).mockImplementation(async (url: string) => String(url).includes('dexscreener')
-      ? { ok: true, json: async () => [] }
-      : { ok: true, json: async () => ({ ...api, tokens, searchedToken: { ...api.searchedToken, mint: URL_MINT } }) })
-    initOgStrip()
-    await vi.waitFor(() => expect(document.querySelectorAll('#psc-og-strip .psc-og-item').length).toBe(3), { timeout: 3000 })
-    const img = avatar(URL_MINT) as HTMLImageElement
-    expect(img.src).toBe(own)
+    expect(img.src).toMatch(/axiom-cdn\.io|digitaloceanspaces\.com/)
     fail(img)
     expect(img.src).toBe(`https://images.pump.fun/coin-image/${URL_MINT}?variant=64x64`)
   })

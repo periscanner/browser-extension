@@ -73,18 +73,6 @@ function isDeadGateway(url: string): boolean {
   }
 }
 
-/** The mint a mint-keyed image URL belongs to (Axiom's CDN serves
- *  `<host>/<mint>.webp`, pump.fun `coin-image/<mint>`), or null for any other URL. */
-function mintInImageUrl(raw: string): string | null {
-  try {
-    const last = new URL(raw).pathname.split('/').filter(Boolean).pop() ?? ''
-    const stem = last.replace(/\.[A-Za-z0-9]{1,5}$/, '')
-    return BASE58_MINT.test(stem) ? stem : null
-  } catch {
-    return null
-  }
-}
-
 /** pump.fun's mint-keyed image CDN. Only for `…pump` mints: for any other mint
  *  it answers 200 with a generic placeholder, which would pass for a real image. */
 export function pumpImageUrl(mint: string | undefined): string | null {
@@ -104,10 +92,7 @@ export function imageCandidates(rawUrl: string | undefined, mint: string | undef
 
   const ipfs = rawUrl ? parseIpfs(rawUrl) : null
   const direct = rawUrl && !/^ipfs:/i.test(rawUrl.trim()) ? safeHttpUrl(rawUrl) : null
-  // DexScreener sometimes attaches another token's image to a pair (a same-name
-  // relaunch): a URL keyed by a *different* mint than this row's is never ours.
-  const foreign = direct && mint ? mintInImageUrl(direct) : null
-  if (direct && !isDeadGateway(direct) && (!foreign || foreign === mint)) add(direct)
+  if (direct && !isDeadGateway(direct)) add(direct)
   add(pumpImageUrl(mint))
   if (ipfs) for (const gw of IPFS_FALLBACK_GATEWAYS) add(`${gw}${ipfs.cid}${ipfs.path}`)
   return out
