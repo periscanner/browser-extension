@@ -98,6 +98,8 @@ export interface SimilarToken {
    * any unrecognised value renders no icon at all.
    */
   feeCategory?: 'cashback' | 'fee_share' | 'default';
+  /** pump.fun charity coin (creator fees to Donate.gg); only ever `true`, sent by scanner-api builds that detect it. */
+  isCharity?: boolean;
 }
 
 export interface SimilarTokensResponse {

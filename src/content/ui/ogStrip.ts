@@ -148,6 +148,18 @@ function ensureStyles() {
       font-weight: 700;
       color: var(--ps-z400);
     }
+    /* pump.fun charity coin: compact heart right after the ticker. Inline SVG
+       (not Axiom's icon font) so it renders the same wherever the strip does. */
+    #psc-og-strip .psc-og-charity {
+      display: inline-flex;
+      align-items: center;
+      flex-shrink: 0;
+      width: 11px;
+      height: 11px;
+      margin-left: -3px;
+      color: #f472b6;
+    }
+    #psc-og-strip .psc-og-charity svg { width: 100%; height: 100%; display: block; }
     #psc-og-strip .psc-og-quote {
       font-size: 9px;
       font-weight: 600;
@@ -303,6 +315,17 @@ function feeIconHtml(feeCategory: SimilarToken['feeCategory']): string {
   return `<i class="psc-og-fee-icon ${icon.cls}" style="color: ${icon.color};" title="${icon.title}"></i>`
 }
 
+// pump.fun charity-coin heart. `isCharity` comes from the API (attacker-
+// influenced surface like everything else on the row), so only the boolean
+// `true` renders it, and the markup is a hardcoded literal with nothing
+// interpolated. Anything else (missing, "true", 1, objects) shows nothing.
+const CHARITY_HEART =
+  '<span class="psc-og-charity" title="Charity coin: creator fees go to charity (Donate.gg)">' +
+  '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></span>'
+function charityHtml(isCharity: SimilarToken['isCharity']): string {
+  return isCharity === true ? CHARITY_HEART : ''
+}
+
 // `isCurrent` marks the row for the token already open in this tab (compared
 // by mint (the lineage's canonical mint) — not the URL's id, which may be a pool, since
 // lineage rows carry mints). That row gets
@@ -334,6 +357,7 @@ function itemHtml(token: SimilarToken, isCurrent: boolean): string {
     <div class="${itemClass}"${navAttr}${mint ? ` data-mint="${escapeHtml(mint)}"` : ''} title="${safeTicker} — ${safeName}${titleSuffix}">
       ${avatar}
       <span class="psc-og-ticker">${safeTicker}</span>
+      ${charityHtml(token.isCharity)}
       <span class="psc-og-quote"${quote ? ` title="Paired against ${escapeHtml(quote)}"` : ''}>${quote ? '/' + escapeHtml(quote) : ''}</span>
       <span class="psc-og-sep">–</span>
       <span class="psc-og-name">${safeName}</span>

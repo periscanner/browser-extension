@@ -1,0 +1,28 @@
+{
+  "_note": "scanner-api /extension/similar-tokens row shape for pump.fun charity coin 2PUJmgHH...pump (DexScreener pair data captured 2026-11-19; feeCategory/isCharity as the f28ab62 backend emits them: sharing-config shareholder 2Kyho5z... is the coin's own pump_fees DonationFeePda; pump.fun's is_charity=true). The second row is an ordinary coin.",
+  "tokens": [
+    {
+      "chainId": "solana", "dexId": "pumpfun",
+      "pairAddress": "2imwX5FoiG6eNy8oxJcQgBh8GEztTv1sPoDJADhUbD18",
+      "baseToken": { "address": "2PUJmgHHurTs46x7N8DJ499fTcHeJjxBSsVEo5CZpump", "name": "Effective Accelerationism", "symbol": "e/acc" },
+      "priceUsd": "0.000002153", "liquidity": { "usd": 0 }, "fdv": 2153.29, "marketCap": 2153.29,
+      "pairCreatedAt": 1795069463000, "pairCreatedAtSource": "pool",
+      "info": { "imageUrl": "https://ipfs.io/ipfs/QmdMbfxUviasaqiYPBcDQ89nyN8MHDpRpouX4VDKC4waYq" },
+      "match": { "ticker": true, "name": true, "image": false }, "matchScore": 2,
+      "axiomLink": "https://axiom.trade/token/2PUJmgHHurTs46x7N8DJ499fTcHeJjxBSsVEo5CZpump?chain=sol",
+      "bonded": false, "feeCategory": "fee_share", "isCharity": true
+    },
+    {
+      "chainId": "solana", "dexId": "pumpfun",
+      "pairAddress": "Rmh9wDHvgAnPcqCZaS741Qb9MopUp9gz6HADZXpoHyo",
+      "baseToken": { "address": "J9k8HMiDbg7tSNyYtgurDL59oMXX7X8b2GHPhjeapump", "name": "Effective Accelerationism", "symbol": "e/acc" },
+      "priceUsd": "0.000008257", "liquidity": { "usd": 0 }, "fdv": 8257.77, "marketCap": 8257.77,
+      "pairCreatedAt": 1792525989000, "pairCreatedAtSource": "pool",
+      "info": { "imageUrl": "" },
+      "match": { "ticker": true, "name": true, "image": false }, "matchScore": 2,
+      "axiomLink": "https://axiom.trade/token/J9k8HMiDbg7tSNyYtgurDL59oMXX7X8b2GHPhjeapump?chain=sol",
+      "bonded": false, "feeCategory": "default"
+    }
+  ],
+  "searchedToken": { "name": "Effective Accelerationism", "symbol": "e/acc", "mint": "2PUJmgHHurTs46x7N8DJ499fTcHeJjxBSsVEo5CZpump" }
+}
