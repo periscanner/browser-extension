@@ -59,7 +59,9 @@ beforeEach(() => {
   localStorage.clear() // Axiom's private storage is NOT needed
   backendResolvesMints = true
   fetchMock.mockReset().mockImplementation(async (_url: string, init: { body: string }) => respond(JSON.parse(init.body)))
-  vi.stubGlobal('fetch', fetchMock)
+  // quote-badge lookups go to DexScreener, not scanner-api: keep them out of fetchMock's call counts
+  vi.stubGlobal('fetch', (url: string, init?: unknown) =>
+    String(url).includes('dexscreener') ? Promise.resolve({ ok: true, json: async () => [] }) : (fetchMock as any)(url, init))
 })
 afterEach(() => vi.unstubAllGlobals())
 

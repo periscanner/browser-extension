@@ -87,6 +87,8 @@ export interface SimilarToken {
   info?: {
     imageUrl?: string;
   };
+  /** Quote token of the row's pair, when the API supplies it (it does not yet; the strip then asks DexScreener). */
+  quoteToken?: { address: string; symbol: string };
   match: SimilarTokenMatch;
   matchScore: number; // 0-3 based on how many fields match
   axiomLink: string;

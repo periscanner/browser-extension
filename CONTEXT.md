@@ -69,6 +69,10 @@ Against `…workers.dev/api/v1` (prod) — see `cloudflare-workers/CONTEXT.md` f
 `POST /extension/similar-tokens`, `POST /jobs` + `GET /jobs/:id` (deep-scan ingest), and
 `POST /wallet/ingest-bulk`.
 
+The OG strip's "/TTWO" quote badge (pump.fun tokens paired to a non-SOL quote) is the one call that
+skips scanner-api: the rows carry no quote, so `services/quotePairs.ts` asks DexScreener
+`/tokens/v1/solana/<mints>` directly (batched, CORS-open, cached; degrades to no badge).
+
 ## Avoid
 
 - **Mint ≠ pool id** — the token vs the Axiom DEX pair; they differ on fresh tokens.

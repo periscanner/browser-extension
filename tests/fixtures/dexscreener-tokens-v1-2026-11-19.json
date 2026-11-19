@@ -1,0 +1,78 @@
+[
+ {
+  "chainId": "solana",
+  "dexId": "pumpswap",
+  "pairAddress": "53F6GxcHZDF1YLgMBM8X6e9G25w3XGs424ea8LUQQYvs",
+  "baseToken": {
+   "address": "AKDjR5f6sisQkJyhYdGHfqPtdXu9upZc4GZuH9GJpump",
+   "name": "WhatUp",
+   "symbol": "WhatUp"
+  },
+  "quoteToken": {
+   "address": "TTWofwAge91oFhZs7kpQdyrVRkmevgM88xijGvQFbKo",
+   "name": "Take-Two Interactive Software - Backpack Securities",
+   "symbol": "TTWO"
+  },
+  "liquidity": {
+   "base": 87733205,
+   "quote": 101.5167,
+   "usd": 49508.04
+  },
+  "marketCap": 285187,
+  "pairCreatedAt": 1795032852000
+ },
+ {
+  "chainId": "solana",
+  "dexId": "pumpfun",
+  "pairAddress": "Rmh9wDHvgAnPcqCZaS741Qb9MopUp9gz6HADZXpoHyo",
+  "baseToken": {
+   "address": "J9k8HMiDbg7tSNyYtgurDL59oMXX7X8b2GHPhjeapump",
+   "name": "WhatUp",
+   "symbol": "WhatUp"
+  },
+  "quoteToken": {
+   "address": "TTWofwAge91oFhZs7kpQdyrVRkmevgM88xijGvQFbKo",
+   "name": "Take-Two Interactive Software - Backpack Securities",
+   "symbol": "TTWO"
+  },
+  "liquidity": null,
+  "marketCap": 6561.66,
+  "pairCreatedAt": 1792525989000
+ },
+ {
+  "chainId": "solana",
+  "dexId": "pumpfun",
+  "pairAddress": "AVZmtNvkYWkittjfVDy2sxEJkvJkf5pMyaqhScmG8ZmR",
+  "baseToken": {
+   "address": "7ge9CUEtZ4gQtMf9eiPf5Mk9Gv8j8wCds3m49tUVcHa1",
+   "name": "WhatUp",
+   "symbol": "WHATUP"
+  },
+  "quoteToken": {
+   "address": "So11111111111111111111111111111111111111112",
+   "name": "Wrapped SOL",
+   "symbol": "SOL"
+  },
+  "liquidity": null,
+  "marketCap": 2084.9,
+  "pairCreatedAt": 1795067965000
+ },
+ {
+  "chainId": "solana",
+  "dexId": "pumpfun",
+  "pairAddress": "JCpv95e21DARije55TKCbU9njinn57rQU7ygBMpQ8qqj",
+  "baseToken": {
+   "address": "2qBko4AuYMDDfb1C1UNyPHGXaz5gSg2uZ3tmdxrepump",
+   "name": "GTA VI WhatsApp",
+   "symbol": "WhatUp"
+  },
+  "quoteToken": {
+   "address": "TTWofwAge91oFhZs7kpQdyrVRkmevgM88xijGvQFbKo",
+   "name": "Take-Two Interactive Software - Backpack Securities",
+   "symbol": "TTWO"
+  },
+  "liquidity": null,
+  "marketCap": 5989.14,
+  "pairCreatedAt": 1792102291000
+ }
+]

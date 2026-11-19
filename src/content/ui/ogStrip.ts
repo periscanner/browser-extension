@@ -13,6 +13,7 @@ import { lookupByUrlId } from '../services/tokenLookup'
 import { formatCompactUsd } from '../utils/format'
 import { escapeHtml, safeImageUrl } from '../utils/escape'
 import { imageCandidates } from '../utils/imageSources'
+import { getCachedQuote, loadQuotes, quoteLabel } from '../services/quotePairs'
 import { SimilarToken } from '../types'
 
 const STRIP_ID = 'psc-og-strip'
@@ -147,6 +148,16 @@ function ensureStyles() {
       font-weight: 700;
       color: var(--ps-z400);
     }
+    #psc-og-strip .psc-og-quote {
+      font-size: 9px;
+      font-weight: 600;
+      color: #f4c06b;
+      margin-left: -3px;
+      max-width: 72px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #psc-og-strip .psc-og-quote:empty { display: none; }
     #psc-og-strip .psc-og-ticker {
       font-size: 11px;
       font-weight: 700;
@@ -313,6 +324,7 @@ function itemHtml(token: SimilarToken, isCurrent: boolean): string {
     ? `<img class="psc-og-avatar" src="${escapeHtml(imageUrl)}" alt="" referrerpolicy="no-referrer" data-alts="${escapeHtml(JSON.stringify(altImages))}" data-fallback="${fallbackLetter}" />`
     : `<div class="psc-og-avatar psc-og-glyph">${fallbackLetter}</div>`
   const mint = BASE58_MINT.test(token.baseToken.address) ? token.baseToken.address : null
+  const quote = quoteLabel(token.quoteToken ?? (mint ? getCachedQuote(mint) : null))
   const navPath = isCurrent ? null : navPathFor(token)
   const navAttr = navPath ? ` data-nav-path="${escapeHtml(navPath)}"` : ''
   const itemClass = isCurrent ? 'psc-og-item psc-og-item-current' : 'psc-og-item'
@@ -322,6 +334,7 @@ function itemHtml(token: SimilarToken, isCurrent: boolean): string {
     <div class="${itemClass}"${navAttr}${mint ? ` data-mint="${escapeHtml(mint)}"` : ''} title="${safeTicker} — ${safeName}${titleSuffix}">
       ${avatar}
       <span class="psc-og-ticker">${safeTicker}</span>
+      <span class="psc-og-quote"${quote ? ` title="Paired against ${escapeHtml(quote)}"` : ''}>${quote ? '/' + escapeHtml(quote) : ''}</span>
       <span class="psc-og-sep">–</span>
       <span class="psc-og-name">${safeName}</span>
       <span class="psc-og-sep">–</span>
@@ -381,6 +394,18 @@ function nextImageAlt(img: HTMLImageElement): string | null {
   return null
 }
 
+// Fills the "/TTWO" quote badge on rows once DexScreener answers. A no-op for
+// rows that already got one (cached, or supplied by the API) and for SOL pairs.
+function applyQuotes(track: HTMLElement) {
+  track.querySelectorAll<HTMLElement>('.psc-og-item[data-mint]').forEach((item) => {
+    const slot = item.querySelector<HTMLElement>('.psc-og-quote')
+    const label = quoteLabel(getCachedQuote(item.dataset.mint!))
+    if (!slot || !label || slot.textContent) return
+    slot.textContent = '/' + label
+    slot.title = `Paired against ${label}`
+  })
+}
+
 // Renders the strip's content from whatever lineage data is available. The
 // strip itself never collapses — it's permanently `display: flex` at
 // 26.284px (see #psc-og-strip) on every page the shell exists on, so
@@ -403,6 +428,13 @@ function renderStrip(tokens: SimilarToken[] | null, currentMint: string | null) 
 
   track.innerHTML = lineage.map((t) => itemHtml(t, t.baseToken.address === currentMint)).join('')
   wireItemEvents(track)
+
+  // Quote pairing isn't in the API rows: one batched lookup, badges fill in
+  // when it lands (cached mints already rendered theirs above).
+  const unknown = lineage
+    .filter((t) => !t.quoteToken && getCachedQuote(t.baseToken.address) === undefined)
+    .map((t) => t.baseToken.address)
+  if (unknown.length) void loadQuotes(unknown).then(() => { if (track.isConnected) applyQuotes(track) }).catch(() => {})
 }
 
 // Shown the moment a token id is read from the URL but its lineage hasn't
