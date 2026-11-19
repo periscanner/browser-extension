@@ -73,9 +73,11 @@ The OG strip's "/TTWO" quote badge (pump.fun tokens paired to a non-SOL quote) i
 skips scanner-api: the rows carry no quote, so `services/quotePairs.ts` asks DexScreener
 `/tokens/v1/solana/<mints>` directly (batched, CORS-open, cached; degrades to no badge).
 
-Strip rows also carry two API-supplied marks, both strictly gated: a pink heart for pump.fun **charity
+Strip rows also carry three API-supplied marks, all strictly gated: a pink heart for pump.fun **charity
 coins** (`isCharity === true`; scanner-api detects the coin's own `DonationFeePda` fee-share shareholder
-on chain, because pump.fun's `is_charity` API is challenge/CORS-locked) and the light-blue **current**
+on chain, because pump.fun's `is_charity` API is challenge/CORS-locked), a green gift for **Holder
+rewards** coins (`isHolderRewards === true`; read from the coin's bonding-curve/pool `is_holder_reward`
+flag + `holder-rewards` PDA creator; the gift is our own glyph, not pump.fun's) and the light-blue **current**
 row (matched by mint, URL id or pool address; always shown, even past the 5-row cap). Image URLs keyed
 by another mint (`<cdn>/<mint>.webp`) are NOT dropped: copycats legitimately reuse the OG's image URL, and
 filtering it would cost them their image match.

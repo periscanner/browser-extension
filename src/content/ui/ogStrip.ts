@@ -174,6 +174,18 @@ function ensureStyles() {
       color: #f472b6;
     }
     #psc-og-strip .psc-og-charity svg { width: 100%; height: 100%; display: block; }
+    /* pump.fun "Holder rewards" coin: gift icon next to where the charity heart
+       goes (a coin is never both). Inline stroke SVG, same sizing as the heart. */
+    #psc-og-strip .psc-og-holder-rewards {
+      display: inline-flex;
+      align-items: center;
+      flex-shrink: 0;
+      width: 11px;
+      height: 11px;
+      margin-left: -3px;
+      color: #4ade80;
+    }
+    #psc-og-strip .psc-og-holder-rewards svg { width: 100%; height: 100%; display: block; }
     #psc-og-strip .psc-og-quote {
       font-size: 9px;
       font-weight: 600;
@@ -340,6 +352,16 @@ function charityHtml(isCharity: SimilarToken['isCharity']): string {
   return isCharity === true ? CHARITY_HEART : ''
 }
 
+// pump.fun "Holder rewards" coin (creator fees paid out to holders). Same
+// strict `=== true` gate and hardcoded markup as the heart. The glyph is a
+// lucide-style gift: pump.fun's own icon isn't reachable (challenge-locked).
+const HOLDER_REWARDS_ICON =
+  '<span class="psc-og-holder-rewards" title="Holder rewards">' +
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg></span>'
+function holderRewardsHtml(isHolderRewards: SimilarToken['isHolderRewards']): string {
+  return isHolderRewards === true ? HOLDER_REWARDS_ICON : ''
+}
+
 // `isCurrent` marks the row for the token already open in this tab (see isCurrentRow:
 // matched by canonical mint, URL id or pool address, since
 // the URL id may be a pool while rows carry mints). That row gets
@@ -371,7 +393,7 @@ function itemHtml(token: SimilarToken, isCurrent: boolean): string {
     <div class="${itemClass}"${navAttr}${mint ? ` data-mint="${escapeHtml(mint)}"` : ''} title="${safeTicker} — ${safeName}${titleSuffix}">
       ${avatar}
       <span class="psc-og-ticker">${safeTicker}</span>
-      ${charityHtml(token.isCharity)}
+      ${charityHtml(token.isCharity)}${holderRewardsHtml(token.isHolderRewards)}
       <span class="psc-og-quote"${quote ? ` title="Paired against ${escapeHtml(quote)}"` : ''}>${quote ? '/' + escapeHtml(quote) : ''}</span>
       <span class="psc-og-sep">–</span>
       <span class="psc-og-name">${safeName}</span>

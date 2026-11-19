@@ -100,6 +100,8 @@ export interface SimilarToken {
   feeCategory?: 'cashback' | 'fee_share' | 'default';
   /** pump.fun charity coin (creator fees to Donate.gg); only ever `true`, sent by scanner-api builds that detect it. */
   isCharity?: boolean;
+  /** pump.fun "Holder rewards" coin (creator fees paid to holders); only ever `true`, sent by scanner-api builds that detect it. */
+  isHolderRewards?: boolean;
 }
 
 export interface SimilarTokensResponse {
