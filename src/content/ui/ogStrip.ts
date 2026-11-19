@@ -183,7 +183,7 @@ function ensureStyles() {
       width: 11px;
       height: 11px;
       margin-left: -3px;
-      color: #4ade80;
+      color: #f59e0b;
     }
     #psc-og-strip .psc-og-holder-rewards svg { width: 100%; height: 100%; display: block; }
     #psc-og-strip .psc-og-quote {

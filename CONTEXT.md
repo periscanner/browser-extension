@@ -75,7 +75,7 @@ skips scanner-api: the rows carry no quote, so `services/quotePairs.ts` asks Dex
 
 Strip rows also carry three API-supplied marks, all strictly gated: a pink heart for pump.fun **charity
 coins** (`isCharity === true`; scanner-api detects the coin's own `DonationFeePda` fee-share shareholder
-on chain, because pump.fun's `is_charity` API is challenge/CORS-locked), a green gift for **Holder
+on chain, because pump.fun's `is_charity` API is challenge/CORS-locked), a yellow gift for **Holder
 rewards** coins (`isHolderRewards === true`; read from the coin's bonding-curve/pool `is_holder_reward`
 flag + `holder-rewards` PDA creator; the gift is our own glyph, not pump.fun's) and the light-blue **current**
 row (matched by mint, URL id or pool address; always shown, even past the 5-row cap). Image URLs keyed
