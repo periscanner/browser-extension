@@ -17,12 +17,20 @@ const BASE58 = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/
 const PUMP_DEXES = new Set(['pumpfun', 'pumpswap'])
 const MAX_SYMBOL = 8
 
-// mint -> quote (null = looked up, SOL / unknown / not a pump pair). Oldest evicted.
-const cache = new Map<string, QuoteInfo | null>()
+const NO_PAIR_TTL_MS = 60_000 // "no pair yet" (fresh launch) is re-checked after this
+const FAIL_BACKOFF_MS = 30_000 // skip DexScreener this long after a failed request
+
+// mint -> quote (null = no pump pair found; expires so a fresh launch gets re-checked).
+// Real quotes never expire. Oldest evicted.
+const cache = new Map<string, { q: QuoteInfo | null; exp: number }>()
 const inFlight = new Map<string, Promise<void>>()
+let backoffUntil = 0
 
 export function getCachedQuote(mint: string): QuoteInfo | null | undefined {
-  return cache.get(mint)
+  const e = cache.get(mint)
+  if (!e) return undefined
+  if (e.q === null && Date.now() >= e.exp) { cache.delete(mint); return undefined }
+  return e.q
 }
 
 /** Display form of a quote: null for SOL (nothing to show). Symbol is
@@ -39,7 +47,8 @@ function remember(mint: string, q: QuoteInfo | null) {
     const oldest = cache.keys().next().value
     if (oldest !== undefined) cache.delete(oldest)
   }
-  cache.set(mint, q)
+  cache.delete(mint) // refresh insertion order
+  cache.set(mint, { q, exp: q ? Infinity : Date.now() + NO_PAIR_TTL_MS })
 }
 
 interface DexPair {
@@ -70,18 +79,20 @@ function pickQuotes(pairs: DexPair[], mints: string[]): Map<string, QuoteInfo | 
 }
 
 async function fetchBatch(mints: string[]): Promise<void> {
+  if (Date.now() < backoffUntil) return
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
   try {
     const url = safeHttpUrl(DEXSCREENER_TOKENS + mints.join(','))
     if (!url) return
     const res = await fetch(url, { signal: ctrl.signal })
-    if (!res.ok) return // leave uncached: retry on the next render
+    if (!res.ok) { backoffUntil = Date.now() + FAIL_BACKOFF_MS; return }
     const data: unknown = await res.json()
-    if (!Array.isArray(data)) return
+    if (!Array.isArray(data)) { backoffUntil = Date.now() + FAIL_BACKOFF_MS; return }
     for (const [m, q] of pickQuotes(data as DexPair[], mints)) remember(m, q)
   } catch {
-    // network / abort / bad JSON: no badge, retry next render
+    // network / abort / bad JSON: no badge, back off before retrying
+    backoffUntil = Date.now() + FAIL_BACKOFF_MS
   } finally {
     clearTimeout(timer)
   }
@@ -89,7 +100,7 @@ async function fetchBatch(mints: string[]): Promise<void> {
 
 /** Fills the cache for any not-yet-known mints. Never throws. */
 export async function loadQuotes(mints: string[]): Promise<void> {
-  const todo = [...new Set(mints)].filter((m) => BASE58.test(m) && !cache.has(m) && !inFlight.has(m))
+  const todo = [...new Set(mints)].filter((m) => BASE58.test(m) && getCachedQuote(m) === undefined && !inFlight.has(m))
   const waits: Promise<void>[] = mints.filter((m) => inFlight.has(m)).map((m) => inFlight.get(m)!)
   for (let i = 0; i < todo.length; i += BATCH) {
     const chunk = todo.slice(i, i + BATCH)
@@ -100,4 +111,4 @@ export async function loadQuotes(mints: string[]): Promise<void> {
   await Promise.all(waits)
 }
 
-export function clearQuoteCache() { cache.clear(); inFlight.clear() }
+export function clearQuoteCache() { cache.clear(); inFlight.clear(); backoffUntil = 0 }

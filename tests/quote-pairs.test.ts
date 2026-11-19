@@ -9,11 +9,12 @@ const SOL_PUMP = '7ge9CUEtZ4gQtMf9eiPf5Mk9Gv8j8wCds3m49tUVcHa1'
 const fetchMock = vi.fn()
 
 beforeEach(() => {
+  vi.useFakeTimers()
   clearQuoteCache()
   fetchMock.mockReset().mockImplementation(async () => ({ ok: true, json: async () => dex }))
   vi.stubGlobal('fetch', fetchMock)
 })
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
 describe('quote pairs from DexScreener', () => {
   it('shows TTWO for the real example mint (live capture), SOL pair has no label', async () => {
@@ -48,13 +49,47 @@ describe('quote pairs from DexScreener', () => {
     fetchMock.mockImplementationOnce(async () => ({ ok: false, json: async () => ({}) }))
     await expect(loadQuotes([WHATUP])).resolves.toBeUndefined()
     expect(getCachedQuote(WHATUP)).toBeUndefined()
+    vi.advanceTimersByTime(31_000)
     fetchMock.mockImplementationOnce(async () => { throw new Error('offline') })
     await loadQuotes([WHATUP])
     expect(getCachedQuote(WHATUP)).toBeUndefined()
+    vi.advanceTimersByTime(31_000)
     fetchMock.mockImplementationOnce(async () => ({ ok: true, json: async () => ({ pairs: 'nope' }) }))
     await loadQuotes([WHATUP])
     expect(getCachedQuote(WHATUP)).toBeUndefined()
+    vi.advanceTimersByTime(31_000)
     await loadQuotes([WHATUP]) // recovers
+    expect(quoteLabel(getCachedQuote(WHATUP))).toBe('TTWO')
+  })
+
+  it('re-fetches a "no pair yet" mint after the 60s TTL, not before; real quotes stay cached', async () => {
+    fetchMock.mockImplementation(async () => ({ ok: true, json: async () => [] }))
+    await loadQuotes([SOL_PUMP])
+    expect(getCachedQuote(SOL_PUMP)).toBeNull()
+    vi.advanceTimersByTime(59_000)
+    await loadQuotes([SOL_PUMP])
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(getCachedQuote(SOL_PUMP)).toBeNull()
+    vi.advanceTimersByTime(2_000)
+    expect(getCachedQuote(SOL_PUMP)).toBeUndefined()
+    fetchMock.mockImplementation(async () => ({ ok: true, json: async () => dex }))
+    await loadQuotes([SOL_PUMP, WHATUP])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(getCachedQuote(SOL_PUMP)?.address).toBe(SOL_MINT)
+    vi.advanceTimersByTime(3_600_000)
+    expect(quoteLabel(getCachedQuote(WHATUP))).toBe('TTWO')
+  })
+
+  it('skips DexScreener for 30s after a 429, then retries', async () => {
+    fetchMock.mockImplementationOnce(async () => ({ ok: false, status: 429, json: async () => ({}) }))
+    await loadQuotes([WHATUP])
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    vi.advanceTimersByTime(29_000)
+    await loadQuotes([WHATUP])
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    vi.advanceTimersByTime(2_000)
+    await loadQuotes([WHATUP])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(quoteLabel(getCachedQuote(WHATUP))).toBe('TTWO')
   })
 
