@@ -12,6 +12,7 @@ import { extractTokenFromUrl } from '../services/scanner'
 import { lookupByUrlId } from '../services/tokenLookup'
 import { formatCompactUsd } from '../utils/format'
 import { escapeHtml, safeImageUrl } from '../utils/escape'
+import { imageCandidates } from '../utils/imageSources'
 import { SimilarToken } from '../types'
 
 const STRIP_ID = 'psc-og-strip'
@@ -305,17 +306,20 @@ function itemHtml(token: SimilarToken, isCurrent: boolean): string {
   const fallbackLetter = escapeHtml(ticker.charAt(0).toUpperCase() || '?')
   const safeTicker = escapeHtml(ticker)
   const safeName = escapeHtml(name)
-  const imageUrl = safeImageUrl(token.info?.imageUrl)
+  // First candidate is the <img src>; the rest are tried by wireItemEvents on
+  // error before the glyph (see ../utils/imageSources for why).
+  const [imageUrl, ...altImages] = imageCandidates(token.info?.imageUrl, token.baseToken.address)
   const avatar = imageUrl
-    ? `<img class="psc-og-avatar" src="${escapeHtml(imageUrl)}" alt="" data-fallback="${fallbackLetter}" />`
+    ? `<img class="psc-og-avatar" src="${escapeHtml(imageUrl)}" alt="" referrerpolicy="no-referrer" data-alts="${escapeHtml(JSON.stringify(altImages))}" data-fallback="${fallbackLetter}" />`
     : `<div class="psc-og-avatar psc-og-glyph">${fallbackLetter}</div>`
+  const mint = BASE58_MINT.test(token.baseToken.address) ? token.baseToken.address : null
   const navPath = isCurrent ? null : navPathFor(token)
   const navAttr = navPath ? ` data-nav-path="${escapeHtml(navPath)}"` : ''
   const itemClass = isCurrent ? 'psc-og-item psc-og-item-current' : 'psc-og-item'
   const titleSuffix = isCurrent ? ' (current)' : ''
 
   return `
-    <div class="${itemClass}"${navAttr} title="${safeTicker} — ${safeName}${titleSuffix}">
+    <div class="${itemClass}"${navAttr}${mint ? ` data-mint="${escapeHtml(mint)}"` : ''} title="${safeTicker} — ${safeName}${titleSuffix}">
       ${avatar}
       <span class="psc-og-ticker">${safeTicker}</span>
       <span class="psc-og-sep">–</span>
@@ -344,13 +348,37 @@ function wireItemEvents(track: HTMLElement) {
     })
   })
   track.querySelectorAll<HTMLImageElement>('img.psc-og-avatar').forEach((img) => {
-    img.addEventListener('error', () => {
+    // Walk the remaining candidates one by one; only when all have failed
+    // does the letter glyph replace the image. Each candidate is re-validated
+    // (it round-trips through a DOM attribute) before it becomes a src.
+    img.addEventListener('error', function onError() {
+      const next = nextImageAlt(img)
+      if (next) {
+        img.src = next
+        return
+      }
+      img.removeEventListener('error', onError)
       const glyph = document.createElement('div')
       glyph.className = 'psc-og-avatar psc-og-glyph'
       glyph.textContent = img.dataset.fallback || '?'
       img.replaceWith(glyph)
-    }, { once: true })
+    })
   })
+}
+
+function nextImageAlt(img: HTMLImageElement): string | null {
+  let alts: unknown
+  try { alts = JSON.parse(img.dataset.alts || '[]') } catch { alts = [] }
+  const list = Array.isArray(alts) ? alts.filter((u): u is string => typeof u === 'string') : []
+  while (list.length) {
+    const next = safeImageUrl(list.shift())
+    if (next) {
+      img.dataset.alts = JSON.stringify(list)
+      return next
+    }
+  }
+  img.dataset.alts = '[]'
+  return null
 }
 
 // Renders the strip's content from whatever lineage data is available. The

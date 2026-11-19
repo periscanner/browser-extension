@@ -1,0 +1,127 @@
+{
+ "tokens": [
+  {
+   "chainId": "solana",
+   "dexId": "pumpfun",
+   "pairAddress": "JCpv95e21DARije55TKCbU9njinn57rQU7ygBMpQ8qqj",
+   "baseToken": {
+    "address": "2qBko4AuYMDDfb1C1UNyPHGXaz5gSg2uZ3tmdxrepump",
+    "name": "GTA VI WhatsApp",
+    "symbol": "WhatUp"
+   },
+   "priceUsd": "0.000006585",
+   "liquidity": {
+    "usd": 0
+   },
+   "fdv": 6585.44,
+   "marketCap": 6585.44,
+   "pairCreatedAt": 1792102291000,
+   "pairCreatedAtSource": "pool",
+   "info": {
+    "imageUrl": "https://ipfs.io/ipfs/bafkreidus7iqx7goet6xqzyevkmqczkqpkhaf2aslbnuzvutidov67h524"
+   },
+   "match": {
+    "ticker": true,
+    "name": false,
+    "image": false
+   },
+   "matchScore": 1,
+   "axiomLink": "https://axiom.trade/meme/JCpv95e21DARije55TKCbU9njinn57rQU7ygBMpQ8qqj?chain=sol",
+   "bonded": false
+  },
+  {
+   "chainId": "solana",
+   "dexId": "pumpfun",
+   "pairAddress": "Rmh9wDHvgAnPcqCZaS741Qb9MopUp9gz6HADZXpoHyo",
+   "baseToken": {
+    "address": "J9k8HMiDbg7tSNyYtgurDL59oMXX7X8b2GHPhjeapump",
+    "name": "WhatUp",
+    "symbol": "WhatUp"
+   },
+   "priceUsd": "0.000008257",
+   "liquidity": {
+    "usd": 0
+   },
+   "fdv": 8257.77,
+   "marketCap": 8257.77,
+   "pairCreatedAt": 1792525989000,
+   "pairCreatedAtSource": "pool",
+   "info": {
+    "imageUrl": "https://ipfs.io/ipfs/bafkreidmkaf5tbbogmjgfqivh22r6vhzpf4o4qyraqlv4ybivqpzdawndu"
+   },
+   "match": {
+    "ticker": true,
+    "name": true,
+    "image": false
+   },
+   "matchScore": 2,
+   "axiomLink": "https://axiom.trade/meme/Rmh9wDHvgAnPcqCZaS741Qb9MopUp9gz6HADZXpoHyo?chain=sol",
+   "bonded": false,
+   "feeCategory": "default"
+  },
+  {
+   "chainId": "solana",
+   "dexId": "pumpswap",
+   "pairAddress": "53F6GxcHZDF1YLgMBM8X6e9G25w3XGs424ea8LUQQYvs",
+   "baseToken": {
+    "address": "AKDjR5f6sisQkJyhYdGHfqPtdXu9upZc4GZuH9GJpump",
+    "name": "WhatUp",
+    "symbol": "WhatUp"
+   },
+   "priceUsd": "0.0002573",
+   "liquidity": {
+    "usd": 46547.92
+   },
+   "fdv": 239356,
+   "marketCap": 239356,
+   "pairCreatedAt": 1795005254000,
+   "pairCreatedAtSource": "pool",
+   "info": {
+    "imageUrl": "https://axiom-sol-v2.sfo3.cdn.digitaloceanspaces.com/7ZjNbCoy8xnXgQxW6NQH1LV9pjVPeS1FZnPbCqEYpump.webp"
+   },
+   "match": {
+    "ticker": true,
+    "name": true,
+    "image": false
+   },
+   "matchScore": 2,
+   "axiomLink": "https://axiom.trade/meme/53F6GxcHZDF1YLgMBM8X6e9G25w3XGs424ea8LUQQYvs?chain=sol",
+   "bonded": true,
+   "feeCategory": "default"
+  },
+  {
+   "chainId": "solana",
+   "dexId": "pumpfun",
+   "pairAddress": "AVZmtNvkYWkittjfVDy2sxEJkvJkf5pMyaqhScmG8ZmR",
+   "baseToken": {
+    "address": "7ge9CUEtZ4gQtMf9eiPf5Mk9Gv8j8wCds3m49tUVcHa1",
+    "name": "WhatUp",
+    "symbol": "WHATUP"
+   },
+   "priceUsd": "0.000002090",
+   "liquidity": {
+    "usd": 0
+   },
+   "fdv": 2090.61,
+   "marketCap": 2090.61,
+   "pairCreatedAt": 1795067965000,
+   "pairCreatedAtSource": "pool",
+   "info": {
+    "imageUrl": ""
+   },
+   "match": {
+    "ticker": true,
+    "name": true,
+    "image": false
+   },
+   "matchScore": 2,
+   "axiomLink": "https://axiom.trade/meme/AVZmtNvkYWkittjfVDy2sxEJkvJkf5pMyaqhScmG8ZmR?chain=sol",
+   "bonded": false,
+   "feeCategory": "default"
+  }
+ ],
+ "searchedToken": {
+  "name": "WhatUp",
+  "symbol": "WhatUp"
+ }
+}
