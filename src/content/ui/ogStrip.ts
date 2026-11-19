@@ -28,11 +28,25 @@ const MIN_MATCH_SCORE = 2
 const MAX_ROWS = 5
 const BONDED_MC = 60000
 
+// The token in view. `urlId` is whatever the page URL carries (a mint on
+// /token/<mint>, a pool on legacy /meme/<pool>); `mint` is the canonical mint the
+// backend resolved it to (null when it didn't say). A row is current if it
+// matches EITHER, so a missing/older `searchedToken.mint` or a pool-id URL can
+// no longer drop the highlight. name/symbol/imageUrl let a row be shown for
+// the current token when the API's lineage omitted it.
+interface CurrentToken {
+  urlId: string
+  mint: string | null
+  name?: string
+  symbol?: string
+  imageUrl?: string
+}
+
 let stripEl: HTMLElement | null = null
 let lastTokens: SimilarToken[] | null = null
-// the canonical mint for lastTokens — kept alongside it so the detach-repair path in
+// Who is "current" for lastTokens — kept alongside it so the detach-repair path in
 // initOgStrip can re-render the "current row" highlight without re-fetching.
-let lastCurrentMint: string | null = null
+let lastCurrent: CurrentToken | null = null
 // True while the strip is showing the loading placeholder rather than real
 // content — lets the detach-repair path restore the right one of the two.
 let isLoadingStrip = false
@@ -326,15 +340,15 @@ function charityHtml(isCharity: SimilarToken['isCharity']): string {
   return isCharity === true ? CHARITY_HEART : ''
 }
 
-// `isCurrent` marks the row for the token already open in this tab (compared
-// by mint (the lineage's canonical mint) — not the URL's id, which may be a pool, since
-// lineage rows carry mints). That row gets
+// `isCurrent` marks the row for the token already open in this tab (see isCurrentRow:
+// matched by canonical mint, URL id or pool address, since
+// the URL id may be a pool while rows carry mints). That row gets
 // accent styling and, critically, no data-nav-path attribute at all, so
 // wireItemEvents' `if (path)` guard turns its click into a no-op instead of a
 // navigation back to the page already showing (verified live: previously it
 // pointed at itself and felt broken).
 function itemHtml(token: SimilarToken, isCurrent: boolean): string {
-  const bonded = (token.marketCap || 0) >= BONDED_MC
+  const bonded = (token.marketCap || 0) >= BONDED_MC && !placeholderRows.has(token)
   const ticker = token.baseToken.symbol || token.baseToken.name || '?'
   const name = token.baseToken.name || ''
   const fallbackLetter = escapeHtml(ticker.charAt(0).toUpperCase() || '?')
@@ -361,10 +375,10 @@ function itemHtml(token: SimilarToken, isCurrent: boolean): string {
       <span class="psc-og-quote"${quote ? ` title="Paired against ${escapeHtml(quote)}"` : ''}>${quote ? '/' + escapeHtml(quote) : ''}</span>
       <span class="psc-og-sep">–</span>
       <span class="psc-og-name">${safeName}</span>
-      <span class="psc-og-sep">–</span>
+      ${placeholderRows.has(token) ? '' : `<span class="psc-og-sep">–</span>
       <span class="psc-og-mcap psc-og-mono">${formatCompactUsd(token.marketCap || 0)}</span>
       <span class="psc-og-sep">–</span>
-      <span class="psc-og-date psc-og-mono">${formatOgDate(token.pairCreatedAt)}</span>
+      <span class="psc-og-date psc-og-mono">${formatOgDate(token.pairCreatedAt)}</span>`}
       ${bonded ? `<span class="psc-og-bonded" title="Bonded — mcap ≥ $60K">🎓</span>` : ''}
       ${feeIconHtml(token.feeCategory)}
       ${isCurrent ? `<span class="psc-og-current-tag">current</span>` : ''}
@@ -437,20 +451,69 @@ function applyQuotes(track: HTMLElement) {
 // than hiding anything.
 // `currentMint` is the canonical mint of the token currently in view (see itemHtml)
 // — pass null when there's nothing to compare against.
-function renderStrip(tokens: SimilarToken[] | null, currentMint: string | null) {
+function isCurrentRow(t: SimilarToken, cur: CurrentToken | null): boolean {
+  if (!cur) return false
+  const a = t.baseToken.address
+  return a === cur.urlId || (cur.mint !== null && a === cur.mint) || t.pairAddress === cur.urlId
+}
+
+// Rows with no market data (the current token synthesized from lookup metadata
+// when the API's lineage left it out) skip the mcap/date columns instead of
+// showing a misleading "$0 – ?".
+const placeholderRows = new WeakSet<SimilarToken>()
+
+function placeholderFor(cur: CurrentToken): SimilarToken {
+  const t: SimilarToken = {
+    chainId: 'solana', dexId: '', pairAddress: cur.urlId,
+    baseToken: { address: cur.mint!, name: cur.name || '', symbol: cur.symbol || '' },
+    priceUsd: '0', liquidity: { usd: 0 }, fdv: 0, marketCap: 0, pairCreatedAt: 0,
+    info: { imageUrl: cur.imageUrl || '' },
+    match: { ticker: true, name: true, image: true }, matchScore: 3, axiomLink: '', bonded: false,
+  } as SimilarToken
+  placeholderRows.add(t)
+  return t
+}
+
+// Which rows to show, and which of them is the current token. The current row is
+// ALWAYS shown when the lineage knows it: it bypasses the matchScore floor and is
+// swapped in for the last slot when it would fall past MAX_ROWS (newer relaunches
+// sort last, and they are the ones people are looking at). When the API left it
+// out entirely but other lineage rows exist, it is added from the lookup's own
+// metadata so the strip still says "you are here".
+function pickRows(tokens: SimilarToken[], cur: CurrentToken | null): { rows: SimilarToken[]; current: SimilarToken | null } {
+  const currentRow = tokens.find((t) => isCurrentRow(t, cur)) ?? null
+  const eligible = tokens.filter((t) => t.matchScore >= MIN_MATCH_SCORE || t === currentRow)
+  let rows = eligible.slice(0, MAX_ROWS)
+  if (currentRow && !rows.includes(currentRow)) rows = [...eligible.slice(0, MAX_ROWS - 1), currentRow]
+  let current = currentRow
+  if (!current && cur?.mint && (cur.name || cur.symbol) && rows.length > 0) {
+    current = placeholderFor(cur)
+    rows = [...rows.slice(0, MAX_ROWS - 1), current]
+  }
+  return { rows, current }
+}
+
+// Renders the strip's content from whatever lineage data is available. The
+// strip itself never collapses — it's permanently `display: flex` at
+// 26.284px (see #psc-og-strip) on every page the shell exists on, so
+// `null`/empty just empties the track down to background + border rather
+// than hiding anything.
+// `cur` identifies the token currently in view (see itemHtml) — null when there's
+// nothing to compare against.
+function renderStrip(tokens: SimilarToken[] | null, cur: CurrentToken | null) {
   isLoadingStrip = false
   const strip = ensureInjected()
   if (!strip) return
   const track = strip.querySelector('.psc-og-track') as HTMLElement | null
   if (!track) return
 
-  const lineage = (tokens || []).filter((t) => t.matchScore >= MIN_MATCH_SCORE).slice(0, MAX_ROWS)
+  const { rows: lineage, current } = pickRows(tokens || [], cur)
   if (lineage.length === 0) {
     track.innerHTML = ''
     return
   }
 
-  track.innerHTML = lineage.map((t) => itemHtml(t, t.baseToken.address === currentMint)).join('')
+  track.innerHTML = lineage.map((t) => itemHtml(t, t === current)).join('')
   wireItemEvents(track)
 
   // Quote pairing isn't in the API rows: one batched lookup, badges fill in
@@ -485,14 +548,20 @@ async function loadForCurrentToken() {
   try {
     const urlId = extractTokenFromUrl()
     // Clear the previous token's lineage immediately — showing it against the
-    // new token in view would be actively misleading.
-    lastTokens = null
-    lastCurrentMint = null
+    // new token in view would be actively misleading. Except when the strip
+    // already shows this very token (moved there by showKnownRow below): keep
+    // those rows up while the fresh lineage loads instead of flashing a
+    // loading placeholder.
+    const keepRows = !!urlId && lastCurrent?.urlId === urlId && lastTokens !== null
+    if (!keepRows) {
+      lastTokens = null
+      lastCurrent = null
+    }
     if (!urlId) {
       renderStrip(null, null)
       return
     }
-    renderLoading()
+    if (!keepRows) renderLoading()
 
     const start = Date.now()
     const lineage = await lookupByUrlId(urlId).catch(() => null)
@@ -500,15 +569,28 @@ async function loadForCurrentToken() {
     if (extractTokenFromUrl() !== urlId) return // navigated away mid-fetch
 
     if (!lineage) {
+      if (keepRows) return // the rows already on screen are for this token
       renderStrip(null, null)
       return
     }
     lastTokens = lineage.tokens
-    lastCurrentMint = lineage.mint
-    renderStrip(lineage.tokens, lineage.mint)
+    lastCurrent = { urlId, mint: lineage.mint, name: lineage.name, symbol: lineage.symbol, imageUrl: lineage.imageUrl }
+    renderStrip(lastTokens, lastCurrent)
   } catch {
     // Silent failure — never break Axiom.
   }
+}
+
+// SPA navigation to a token that is already a row in the strip (Axiom's own
+// links between relaunches): move the highlight right away, before the
+// debounced lookup, so it never lags behind or points at the previous token.
+function showKnownRow() {
+  const id = extractTokenFromUrl()
+  if (!id || !lastTokens || !lastCurrent || lastCurrent.urlId === id) return
+  const hit = lastTokens.find((t) => t.baseToken.address === id || t.pairAddress === id)
+  if (!hit) return
+  lastCurrent = { urlId: id, mint: hit.baseToken.address, name: hit.baseToken.name, symbol: hit.baseToken.symbol, imageUrl: hit.info?.imageUrl }
+  renderStrip(lastTokens, lastCurrent)
 }
 
 function scheduleLoad() {
@@ -532,6 +614,7 @@ export function initOgStrip() {
       try {
         if (location.href !== lastHref) {
           lastHref = location.href
+          showKnownRow()
           scheduleLoad() // auto-load on every SPA token navigation
           return
         }
@@ -541,7 +624,7 @@ export function initOgStrip() {
         // loading placeholder needs no data at all).
         if (!stripEl || !stripEl.isConnected) {
           if (isLoadingStrip) renderLoading()
-          else renderStrip(lastTokens, lastCurrentMint)
+          else renderStrip(lastTokens, lastCurrent)
         }
       } catch {
         // Never break Axiom.
