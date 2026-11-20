@@ -102,6 +102,8 @@ export interface SimilarToken {
   isCharity?: boolean;
   /** pump.fun "Holder rewards" coin (creator fees paid to holders); only ever `true`, sent by scanner-api builds that detect it. */
   isHolderRewards?: boolean;
+  /** Stock-paired coin whose creator fee goes to the dev wallet (red chef hat); only ever `true`, sent by scanner-api builds that detect it. */
+  isDevFeeStock?: boolean;
 }
 
 export interface SimilarTokensResponse {

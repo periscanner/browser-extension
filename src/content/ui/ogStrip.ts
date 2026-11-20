@@ -186,6 +186,18 @@ function ensureStyles() {
       color: #facc15;
     }
     #psc-og-strip .psc-og-holder-rewards svg { width: 100%; height: 100%; display: block; }
+    /* Stock-paired coin whose creator (dev) fee goes to the dev wallet: red chef
+       hat right after the "/AAPL" quote badge. Slightly larger than the other
+       row icons on purpose (user-requested: must be easy to spot). */
+    #psc-og-strip .psc-og-dev-fee {
+      display: inline-flex;
+      align-items: center;
+      flex-shrink: 0;
+      width: 14px;
+      height: 14px;
+      color: #ef4444;
+    }
+    #psc-og-strip .psc-og-dev-fee svg { width: 100%; height: 100%; display: block; }
     #psc-og-strip .psc-og-quote {
       font-size: 9px;
       font-weight: 600;
@@ -362,6 +374,17 @@ function holderRewardsHtml(isHolderRewards: SimilarToken['isHolderRewards']): st
   return isHolderRewards === true ? HOLDER_REWARDS_ICON : ''
 }
 
+// Stock-paired coin whose creator fee goes to the dev wallet (isDevFeeStock).
+// Same strict `=== true` gate and hardcoded markup as the other row icons; the
+// glyph is lucide's chef-hat. Tooltip is static: the exact fee rate is not
+// sent by the API.
+const DEV_FEE_CHEF =
+  '<span class="psc-og-dev-fee" title="Dev earns a creator fee on this stock-paired coin">' +
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21a1 1 0 0 0 1-1v-5.35c0-.457.316-.844.727-1.041a4 4 0 0 0-2.134-7.589 5 5 0 0 0-9.186 0 4 4 0 0 0-2.134 7.588c.411.198.727.585.727 1.041V20a1 1 0 0 0 1 1Z"/><path d="M6 17h12"/></svg></span>'
+function devFeeHtml(isDevFeeStock: SimilarToken['isDevFeeStock']): string {
+  return isDevFeeStock === true ? DEV_FEE_CHEF : ''
+}
+
 // `isCurrent` marks the row for the token already open in this tab (see isCurrentRow:
 // matched by canonical mint, URL id or pool address, since
 // the URL id may be a pool while rows carry mints). That row gets
@@ -395,6 +418,7 @@ function itemHtml(token: SimilarToken, isCurrent: boolean): string {
       <span class="psc-og-ticker">${safeTicker}</span>
       ${charityHtml(token.isCharity)}${holderRewardsHtml(token.isHolderRewards)}
       <span class="psc-og-quote"${quote ? ` title="Paired against ${escapeHtml(quote)}"` : ''}>${quote ? '/' + escapeHtml(quote) : ''}</span>
+      ${devFeeHtml(token.isDevFeeStock)}
       <span class="psc-og-sep">–</span>
       <span class="psc-og-name">${safeName}</span>
       ${placeholderRows.has(token) ? '' : `<span class="psc-og-sep">–</span>
