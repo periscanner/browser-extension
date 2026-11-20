@@ -15,6 +15,8 @@ import { escapeHtml, safeImageUrl } from '../utils/escape'
 import { imageCandidates } from '../utils/imageSources'
 import { getCachedQuote, loadQuotes, quoteLabel } from '../services/quotePairs'
 import { SimilarToken } from '../types'
+import { devFeeHtml } from './devFee'
+import { syncDevFeeHeaderBadge } from './devFeeHeaderBadge'
 
 const STRIP_ID = 'psc-og-strip'
 const STYLE_ID = 'psc-og-strip-styles'
@@ -43,6 +45,7 @@ interface CurrentToken {
 }
 
 let stripEl: HTMLElement | null = null
+let headerDevFee = false
 let lastTokens: SimilarToken[] | null = null
 // Who is "current" for lastTokens — kept alongside it so the detach-repair path in
 // initOgStrip can re-render the "current row" highlight without re-fetching.
@@ -374,17 +377,6 @@ function holderRewardsHtml(isHolderRewards: SimilarToken['isHolderRewards']): st
   return isHolderRewards === true ? HOLDER_REWARDS_ICON : ''
 }
 
-// Stock-paired coin whose creator fee goes to the dev wallet (isDevFeeStock).
-// Same strict `=== true` gate and hardcoded markup as the other row icons; the
-// glyph is lucide's chef-hat. Tooltip is static: the exact fee rate is not
-// sent by the API.
-const DEV_FEE_CHEF =
-  '<span class="psc-og-dev-fee" title="Dev earns a creator fee on this stock-paired coin">' +
-  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21a1 1 0 0 0 1-1v-5.35c0-.457.316-.844.727-1.041a4 4 0 0 0-2.134-7.589 5 5 0 0 0-9.186 0 4 4 0 0 0-2.134 7.588c.411.198.727.585.727 1.041V20a1 1 0 0 0 1 1Z"/><path d="M6 17h12"/></svg></span>'
-function devFeeHtml(isDevFeeStock: SimilarToken['isDevFeeStock']): string {
-  return isDevFeeStock === true ? DEV_FEE_CHEF : ''
-}
-
 // `isCurrent` marks the row for the token already open in this tab (see isCurrentRow:
 // matched by canonical mint, URL id or pool address, since
 // the URL id may be a pool while rows carry mints). That row gets
@@ -554,6 +546,9 @@ function renderStrip(tokens: SimilarToken[] | null, cur: CurrentToken | null) {
   if (!track) return
 
   const { rows: lineage, current } = pickRows(tokens || [], cur)
+  // Header chef hat follows the viewed token's own row (never the placeholder).
+  headerDevFee = !!current && !placeholderRows.has(current) && current.isDevFeeStock === true
+  syncDevFeeHeaderBadge(headerDevFee)
   if (lineage.length === 0) {
     track.innerHTML = ''
     return
@@ -578,6 +573,8 @@ function renderStrip(tokens: SimilarToken[] | null, cur: CurrentToken | null) {
 // static (no pulse/animation) so it doesn't flash or draw the eye.
 function renderLoading() {
   isLoadingStrip = true
+  headerDevFee = false
+  syncDevFeeHeaderBadge(false)
   const strip = ensureInjected()
   if (!strip) return
   const track = strip.querySelector('.psc-og-track') as HTMLElement | null
@@ -664,6 +661,7 @@ export function initOgStrip() {
           scheduleLoad() // auto-load on every SPA token navigation
           return
         }
+        syncDevFeeHeaderBadge(headerDevFee) // Axiom re-renders can drop it
         // Axiom's Next.js re-renders can detach our node without a URL
         // change — repair it and restore whichever state we were last in (no
         // re-fetch needed either way: real lineage is still cached, and the
