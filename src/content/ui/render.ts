@@ -282,7 +282,7 @@ export interface SimilarTokensOptions {
 
 function similarRowHtml(token: SimilarToken, rank: number, crowned: boolean, isYou: boolean): string {
   const highRisk = token.matchScore === 3
-  const isBonded = token.marketCap >= 60000
+  const isBonded = (token.marketCap ?? 0) >= 60000
 
   const safeImage = safeImageUrl(token.info?.imageUrl)
   const avatar = safeImage
@@ -362,7 +362,7 @@ export function renderSimilarTokens(
 
   // Oldest bonded row *among what's rendered* — matches /og's findOgTokenIndex:
   // deliberately scoped to the filtered/show-all view on screen, not the raw list.
-  const ogIndex = rows.findIndex((t) => t.marketCap >= 60000)
+  const ogIndex = rows.findIndex((t) => (t.marketCap ?? 0) >= 60000)
 
   const note = `<div class="cs-sim-note">${tokens.length} token${tokens.length === 1 ? '' : 's'} sharing this name, ticker or image — possible copycats or relaunches.</div>`
 

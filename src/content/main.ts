@@ -208,7 +208,7 @@ async function fetchAndRenderSimilarTokens(ui: any, background = false) {
     similarShowAll = false // fresh data for a (possibly new) token — default back to filtered
 
     // Find oldest bonded token (market cap >= 60k)
-    const bondedTokens = similarTokensData.filter(t => t.marketCap >= 60000)
+    const bondedTokens = similarTokensData.filter(t => (t.marketCap ?? 0) >= 60000)
     oldestBondedToken = bondedTokens.length > 0 ? bondedTokens[0] : null
 
     renderSimilar(ui)

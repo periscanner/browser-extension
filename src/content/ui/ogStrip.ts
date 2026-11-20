@@ -421,9 +421,9 @@ function itemHtml(token: SimilarToken, isCurrent: boolean): string {
       ${devFeeHtml(token.isDevFeeStock)}
       <span class="psc-og-sep">–</span>
       <span class="psc-og-name">${safeName}</span>
-      ${placeholderRows.has(token) ? '' : `<span class="psc-og-sep">–</span>
-      <span class="psc-og-mcap psc-og-mono">${formatCompactUsd(token.marketCap || 0)}</span>
-      <span class="psc-og-sep">–</span>
+      ${placeholderRows.has(token) || token.marketCap == null ? '' : `<span class="psc-og-sep">–</span>
+      <span class="psc-og-mcap psc-og-mono">${formatCompactUsd(token.marketCap)}</span>`}
+      ${placeholderRows.has(token) || !token.pairCreatedAt ? '' : `<span class="psc-og-sep">–</span>
       <span class="psc-og-date psc-og-mono">${formatOgDate(token.pairCreatedAt)}</span>`}
       ${bonded ? `<span class="psc-og-bonded" title="Bonded — mcap ≥ $60K">🎓</span>` : ''}
       ${feeIconHtml(token.feeCategory)}

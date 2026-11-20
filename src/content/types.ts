@@ -68,13 +68,13 @@ export interface SimilarToken {
     name: string;
     symbol: string;
   };
-  priceUsd: string;
-  liquidity: {
+  priceUsd?: string;
+  liquidity?: {
     usd: number;
   };
-  fdv: number;
-  marketCap: number;
-  pairCreatedAt: number;
+  fdv?: number;
+  marketCap?: number;
+  pairCreatedAt?: number;
   /**
    * Which event `pairCreatedAt` describes. `"pool"` is the first-pool date this
    * column normally shows; `"mint"` is scanner-api's on-chain creation fallback
