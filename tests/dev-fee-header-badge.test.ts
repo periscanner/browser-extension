@@ -84,4 +84,15 @@ describe('dev-fee chef hat in Axiom header', () => {
     document.body.appendChild(document.createElement('i')) // trigger observer like Axiom's re-render
     await vi.waitFor(() => expect(badges().length).toBe(0), { timeout: 3000 })
   })
+
+  it('is removed immediately (before the debounce) on navigation to a token with no row', async () => {
+    history.pushState({}, '', `/token/${STOCK}?chain=sol`)
+    mockApi([stockRow(), find(ORDINARY)])
+    initOgStrip()
+    await vi.waitFor(() => expect(badges().length).toBe(1), { timeout: 3000 })
+    history.pushState({}, '', `/token/${CHARITY}?chain=sol`)
+    document.body.appendChild(document.createElement('i'))
+    await new Promise((r) => setTimeout(r, 50)) // observer fired; debounce (400ms) has not
+    expect(badges().length).toBe(0)
+  })
 })

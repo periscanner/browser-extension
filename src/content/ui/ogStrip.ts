@@ -631,7 +631,11 @@ function showKnownRow() {
   const id = extractTokenFromUrl()
   if (!id || !lastTokens || !lastCurrent || lastCurrent.urlId === id) return
   const hit = lastTokens.find((t) => t.baseToken.address === id || t.pairAddress === id)
-  if (!hit) return
+  if (!hit) {
+    // Unknown token: the previous token's chef hat must not linger through the debounce.
+    headerDevFee = false
+    return
+  }
   lastCurrent = { urlId: id, mint: hit.baseToken.address, name: hit.baseToken.name, symbol: hit.baseToken.symbol, imageUrl: hit.info?.imageUrl }
   renderStrip(lastTokens, lastCurrent)
 }
@@ -657,7 +661,8 @@ export function initOgStrip() {
       try {
         if (location.href !== lastHref) {
           lastHref = location.href
-          showKnownRow()
+          showKnownRow() // known row: renderStrip sets headerDevFee; unknown: cleared
+          syncDevFeeHeaderBadge(headerDevFee) // also restores it after a same-mutation header re-render
           scheduleLoad() // auto-load on every SPA token navigation
           return
         }
